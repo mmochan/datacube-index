@@ -15,3 +15,4 @@ RUN pip3 --no-cache-dir install -U thredds_crawler
 COPY assets/update_ranges.sh /code/index/indexing/update_ranges.sh
 COPY assets/update_ranges_wrapper.sh /code/index/indexing/update_ranges_wrapper.sh
 COPY assets/create-index.sh /code/index/create-index.sh
+COPY assets/get_wms_config.sh /code/index/get_wms_config.sh
