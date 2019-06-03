@@ -30,6 +30,10 @@ add_products
 # Generate WMS specific config
 python3 ../update_ranges.py --schema 2>&1 --role $DB_ROLE || echo "Warning: Can't create schema"
 
+
+#Export wms config to actual path 
+get_wms_config.sh
+
 # Run index
 indexing/update_ranges_wrapper.sh
 
