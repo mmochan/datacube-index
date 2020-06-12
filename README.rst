@@ -14,6 +14,7 @@ These utilities include:
 
 #. **s3-to-dc** : Index from S3 storage to a Datacube database.
 #. **thredds-to-dc** : Index from Thredds server to a Datacube database.
+#. **sqs-to-dc** : Index from SQS queue to a Datacube database.
 
 It has code to perform the follow steps:
 
@@ -24,7 +25,6 @@ It has code to perform the follow steps:
 #. Index dataset YAML's found into datacube using generator/list equivalent
    of `dc-index-from-tar <https://github.com/opendatacube/odc-tools/blob/master/apps/dc_tools/odc/apps/dc_tools/index_from_tar.py>`_
    while skipping the tar file.
-
 
 
 Usage in Production
