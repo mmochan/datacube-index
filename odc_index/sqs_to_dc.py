@@ -24,9 +24,7 @@ def queue_to_odc(
 
     while not queue_empty and (not limit or ds_added + ds_failed < limit):
         messages = queue.receive_messages(
-            VisibilityTimeout=30,
-            MaxNumberOfMessages=1,
-            MessageAttributeNames=['All']
+            VisibilityTimeout=30, MaxNumberOfMessages=1, MessageAttributeNames=["All"]
         )
 
         if len(messages) > 0:
@@ -51,7 +49,7 @@ def queue_to_odc(
                     dc.index.datasets.add(ds)
                     ds_added += 1
                 else:
-                    logging.error(f'Error parsing dataset {uri} with error {err}')
+                    logging.error(f"Error parsing dataset {uri} with error {err}")
                     ds_failed += 1
             else:
                 logging.error("Failed to get URI from metadata doc")
@@ -101,14 +99,22 @@ def queue_to_odc(
 )
 @click.argument("queue_name", type=str, nargs=1)
 @click.argument("product", type=str, nargs=-1)
-def cli(skip_lineage, fail_on_missing_lineage, verify_lineage, stac, limit, queue_name, product):
+def cli(
+    skip_lineage,
+    fail_on_missing_lineage,
+    verify_lineage,
+    stac,
+    limit,
+    queue_name,
+    product,
+):
     """ Iterate through messages on an SQS queue and add them to datacube"""
 
     transform = None
     if stac:
         transform = stac_transform
 
-    sqs = boto3.resource('sqs')
+    sqs = boto3.resource("sqs")
     queue = sqs.get_queue_by_name(QueueName=queue_name)
 
     # Do the thing
@@ -121,7 +127,7 @@ def cli(skip_lineage, fail_on_missing_lineage, verify_lineage, stac, limit, queu
         fail_on_missing_lineage=fail_on_missing_lineage,
         verify_lineage=verify_lineage,
         transform=transform,
-        limit=limit
+        limit=limit,
     )
 
     print(f"Added {added} Datasets, Failed {failed} Datasets")
