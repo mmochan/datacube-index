@@ -32,7 +32,7 @@ RUN /env/bin/pip install \
 ADD . /code
 
 # Install the local package
-RUN /env/bin/pip install /code
+RUN /env/bin/pip install --extra-index-url https://packages.dea.ga.gov.au/ /code
 
 FROM opendatacube/geobase:runner
 COPY --from=env_builder /env /env
