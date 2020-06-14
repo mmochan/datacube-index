@@ -1,6 +1,10 @@
 name : Lint and Test Code
 
 on:
+  pull_request:
+    branches:
+      - master
+
   push:
     paths:
       - 'assets/**'
@@ -29,7 +33,7 @@ jobs:
     - name: Run Shell Linter
       run: |
         sudo apt-get install -y shellcheck
-        for a in $(ls assets/*.sh); do shellcheck $a || true ;done
+        for a in $(ls assets/*.sh); do shellcheck $a ;done
 
     - name: Run Python Linter
       uses: lgeiger/black-action@master
@@ -39,6 +43,19 @@ jobs:
     - name: Build Docker
       run: |
         docker build -t datacube-index .
+
+    - name: Run Dockerized Bootstrapping from Git
+      timeout-minutes: 2
+      shell: bash
+      env:
+        PRODUCT_CATALOG : https://raw.githubusercontent.com/GeoscienceAustralia/dea-config/a4f39b485b33608a016032d9987251881fec4b6f/workspaces/sandbox-products.csv
+        METADATA_CATALOG : https://raw.githubusercontent.com/GeoscienceAustralia/dea-config/a4f39b485b33608a016032d9987251881fec4b6f/workspaces/sandbox-metadata.yaml
+      run: |
+        docker-compose up -d
+        docker-compose run dc-index /code/bootstrap-odc.sh $PRODUCT_CATALOG $METADATA_CATALOG
+        docker-compose exec -T dc-db psql -U postgres -c "SELECT count(*) from agdc.metadata_type"
+        docker-compose exec -T dc-db psql -U postgres -c "SELECT count(*) from agdc.dataset_type"
+        docker-compose down
 
     - name: Run Dockerized Tests for S3
       timeout-minutes: 10

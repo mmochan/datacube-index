@@ -40,3 +40,6 @@ COPY --from=env_builder /env /env
 ENV PATH="/env/bin:${PATH}"
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
+
+# Copy Datacube bootstrapping script
+COPY /assets/bootstrap-odc.sh /code/bootstrap-odc.sh

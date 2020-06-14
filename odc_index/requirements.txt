@@ -2,6 +2,7 @@
 aiohttp
 aiobotocore[awscli,boto3]==0.12.0
 thredds-crawler
+wget
 requests
 datacube
 odc-index
