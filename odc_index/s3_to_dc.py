@@ -73,13 +73,15 @@ def dump_to_odc(
     help="Expect STAC 1.0 metadata and attempt to transform to ODC EO3 metadata",
 )
 @click.argument("uri", type=str, nargs=1)
-@click.argument("product", type=str, nargs=-1)
+@click.argument("product", type=str, nargs=1)
 def cli(skip_lineage, fail_on_missing_lineage, verify_lineage, stac, uri, product):
     """ Iterate through files in an S3 bucket and add them to datacube"""
 
     transform = None
     if stac:
         transform = stac_transform
+
+    candidate_products = product.split()
 
     # Get a generator from supplied S3 Uri for metadata definitions
     fetcher = S3Fetcher()
@@ -97,7 +99,7 @@ def cli(skip_lineage, fail_on_missing_lineage, verify_lineage, stac, uri, produc
     added, failed = dump_to_odc(
         fetcher(s3_url_stream),
         dc,
-        product,
+        candidate_products,
         skip_lineage=skip_lineage,
         fail_on_missing_lineage=fail_on_missing_lineage,
         verify_lineage=verify_lineage,

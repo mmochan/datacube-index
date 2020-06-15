@@ -98,7 +98,7 @@ def queue_to_odc(
     help="Stop indexing after n datasets have been indexed.",
 )
 @click.argument("queue_name", type=str, nargs=1)
-@click.argument("product", type=str, nargs=-1)
+@click.argument("product", type=str, nargs=1)
 def cli(
     skip_lineage,
     fail_on_missing_lineage,
@@ -114,6 +114,8 @@ def cli(
     if stac:
         transform = stac_transform
 
+    candidate_products = product.split()
+
     sqs = boto3.resource("sqs")
     queue = sqs.get_queue_by_name(QueueName=queue_name)
 
@@ -122,7 +124,7 @@ def cli(
     added, failed = queue_to_odc(
         queue,
         dc,
-        product,
+        candidate_products,
         skip_lineage=skip_lineage,
         fail_on_missing_lineage=fail_on_missing_lineage,
         verify_lineage=verify_lineage,
