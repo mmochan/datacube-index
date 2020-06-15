@@ -24,7 +24,7 @@ def queue_to_odc(
 
     while not queue_empty and (not limit or ds_added + ds_failed < limit):
         messages = queue.receive_messages(
-            VisibilityTimeout=30, MaxNumberOfMessages=1, MessageAttributeNames=["All"]
+            VisibilityTimeout=60, MaxNumberOfMessages=1, WaitTimeSeconds=10, MessageAttributeNames=["All"]
         )
 
         if len(messages) > 0:
