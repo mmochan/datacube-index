@@ -73,7 +73,7 @@ jobs:
         docker-compose exec -T dc-db psql -U postgres -c "SELECT count(*) from agdc.dataset"
         echo "Checking STAC indexing"
         docker-compose run dc-index datacube product add https://raw.githubusercontent.com/digitalearthafrica/config/master/products/esa_s2_l2a.yaml
-        docker-compose run dc-index s3-to-dc --stac "s3://sentinel-cogs/sentinel-s2-l2a-cogs/2020/S2A_32NNF_20200127_0_L2A/*.json"
+        docker-compose run dc-index s3-to-dc --stac "s3://sentinel-cogs/sentinel-s2-l2a-cogs/2020/S2A_32NNF_20200127_0_L2A/*.json" s2_l2a
         echo "Checking Indexed Datasets Count (including STAC)"
         docker-compose exec -T dc-db psql -U postgres -c "SELECT count(*) from agdc.dataset"
         docker-compose down

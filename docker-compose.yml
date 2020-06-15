@@ -13,8 +13,6 @@ services:
   # Start docker container for Datacube-Index
   dc-index:
     image: datacube-index
-  # TODO: Pass Minio credentials
-  # TODO: Pass PostgreSQL credentials
     environment:
       - DB_HOSTNAME=dc-db
       - DB_USERNAME=postgres
@@ -24,3 +22,6 @@ services:
       - AWS_DEFAULT_REGION=ap-southeast-2
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+    depends_on:
+      - dc-db
+    command: tail -f /dev/null

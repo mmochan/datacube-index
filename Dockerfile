@@ -25,14 +25,14 @@ ADD ./tests/requirements.txt /code/tests/requirements.txt
 ADD ./odc_index/requirements.txt /code/odc_index/requirements.txt
 
 # Install Python requirements
-RUN /env/bin/pip install --extra-index-url https://packages.dea.ga.gov.au/ \
--r /code/odc_index/requirements.txt -r /code/tests/requirements.txt
+RUN /env/bin/pip install \
+    -r /code/odc_index/requirements.txt -r /code/tests/requirements.txt
 
 # Set up a nice workdir, and only copy the things we care about in
 ADD . /code
 
 # Install the local package
-RUN /env/bin/pip install /code
+RUN /env/bin/pip install --extra-index-url https://packages.dea.ga.gov.au/ /code
 
 FROM opendatacube/geobase:runner
 COPY --from=env_builder /env /env
