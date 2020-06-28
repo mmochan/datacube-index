@@ -2,16 +2,16 @@
 """Build S3 iterators using odc-tools
 and index datasets found into RDS
 """
-import sys
 import logging
+import sys
 from typing import Tuple
 
 import click
-from odc.index import from_yaml_doc_stream
-from odc.aio import s3_find_glob, S3Fetcher
 from datacube import Datacube
-from odc.index.stac import stac_transform
 from datacube.utils import changes
+from odc.aio import S3Fetcher, s3_find_glob
+from odc.index import from_yaml_doc_stream
+from odc.index.stac import stac_transform
 
 
 def dump_to_odc(

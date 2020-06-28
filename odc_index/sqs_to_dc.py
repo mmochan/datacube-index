@@ -10,6 +10,7 @@ import boto3
 import click
 from datacube import Datacube
 from datacube.index.hl import Doc2Dataset
+from datacube.utils import changes
 from odc.index.stac import stac_transform
 
 
