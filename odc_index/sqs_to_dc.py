@@ -14,7 +14,14 @@ from odc.index.stac import stac_transform
 
 
 def queue_to_odc(
-    queue, dc: Datacube, products: list, transform=None, limit=None, **kwargs
+    queue,
+    dc: Datacube,
+    products: list,
+    transform=None,
+    limit=None,
+    update=False,
+    allow_unsafe=False,
+    **kwargs,
 ) -> Tuple[int, int]:
 
     ds_added = 0
@@ -49,8 +56,13 @@ def queue_to_odc(
             if uri is not None:
                 ds, err = doc2ds(metadata, uri)
                 if ds is not None:
-                    dc.index.datasets.add(ds)
-                    ds_added += 1
+                    if update:
+                        updates = {}
+                        if allow_unsafe:
+                            updates = {tuple(): changes.allow_any}
+                        dc.index.datasets.update(ds, updates_allowed=updates)
+                    else:
+                        dc.index.datasets.add(ds)
                 else:
                     logging.error(f"Error parsing dataset {uri} with error {err}")
                     ds_failed += 1
@@ -100,6 +112,18 @@ def queue_to_odc(
     type=int,
     help="Stop indexing after n datasets have been indexed.",
 )
+@click.option(
+    "--update",
+    is_flag=True,
+    default=False,
+    help="If set, update instead of add datasets",
+)
+@click.option(
+    "--allow-unsafe",
+    is_flag=True,
+    default=False,
+    help="Allow unsafe changes to a dataset. Take care!",
+)
 @click.argument("queue_name", type=str, nargs=1)
 @click.argument("product", type=str, nargs=1)
 def cli(
@@ -108,6 +132,8 @@ def cli(
     verify_lineage,
     stac,
     limit,
+    update,
+    allow_unsafe,
     queue_name,
     product,
 ):
@@ -133,6 +159,8 @@ def cli(
         verify_lineage=verify_lineage,
         transform=transform,
         limit=limit,
+        update=update,
+        allow_unsafe=allow_unsafe,
     )
 
     print(f"Added {added} Datasets, Failed {failed} Datasets")
