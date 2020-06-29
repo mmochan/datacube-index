@@ -5,7 +5,8 @@ thredds-crawler
 wget
 requests
 datacube
-odc-index
+# Pinned for Alex to index STAC.
+odc-index==0.1.dev509+g92eea92
 odc-aws
 odc-aio
 odc-thredds
