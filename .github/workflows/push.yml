@@ -21,7 +21,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
-      if: github.event.pull_request.merged || github.event_name == 'release'
       uses: actions/checkout@v1
       with:
         fetch-depth: 0
