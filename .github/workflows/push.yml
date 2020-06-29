@@ -35,10 +35,11 @@ jobs:
 
     - name: Get git commit hash for merged PR's / Push to master
       run: |
-        echo ::set-env name=GITHASH::$(git rev-parse --short "$GITHUB_SHA")
+        git fetch --all --tags
+        echo ::set-env name=GITHASH::$(git describe --tags)
         echo $GITHASH
 
-    - name: Build and Push latest Docker Image for Release
+    - name: Build and Push semver tagged Docker Image for Release
       uses: whoan/docker-build-with-cache-action@v4
       if: github.event_name == 'release'
       with:
@@ -48,10 +49,10 @@ jobs:
         image_tag: ${{ env.RELEASE }}
 
     - name: Build and Push unstable Docker Image from PR / Push to Master
-      continue-on-error: true
       uses: whoan/docker-build-with-cache-action@v4
+      if: github.event_name != 'release'
       with:
         image_name: ${{ env.IMAGE_NAME }}
         username: ${{ secrets.DOCKER_USER }}
         password: ${{ secrets.DOCKER_PASS }}
-        image_tag: latest,unstable-${{ env.GITHASH }}
+        image_tag: latest,${{ env.GITHASH }}
