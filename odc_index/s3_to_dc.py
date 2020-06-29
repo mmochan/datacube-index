@@ -2,19 +2,26 @@
 """Build S3 iterators using odc-tools
 and index datasets found into RDS
 """
-import sys
 import logging
+import sys
 from typing import Tuple
 
 import click
-from odc.index import from_yaml_doc_stream
-from odc.aio import s3_find_glob, S3Fetcher
 from datacube import Datacube
+from datacube.utils import changes
+from odc.aio import S3Fetcher, s3_find_glob
+from odc.index import from_yaml_doc_stream
 from odc.index.stac import stac_transform
 
 
 def dump_to_odc(
-    data_stream, dc: Datacube, products: list, transform=None, **kwargs
+    data_stream,
+    dc: Datacube,
+    products: list,
+    transform=None,
+    update=False,
+    allow_unsafe=False,
+    **kwargs,
 ) -> Tuple[int, int]:
     # TODO: Get right combination of flags for **kwargs in low validation/no-lineage mode
     expand_stream = ((d.url, d.data) for d in data_stream if d.data is not None)
@@ -33,9 +40,15 @@ def dump_to_odc(
         else:
             logging.info(ds)
             # TODO: Potentially wrap this in transactions and batch to DB
-            # TODO: Capture UUID's from YAML and perform a bulk has
+            # TODO: Capture UUID's from dataset doc and perform a bulk has
             try:
-                dc.index.datasets.add(ds)
+                if update:
+                    updates = {}
+                    if allow_unsafe:
+                        updates = {tuple(): changes.allow_any}
+                    dc.index.datasets.update(ds, updates_allowed=updates)
+                else:
+                    dc.index.datasets.add(ds)
                 ds_added += 1
             except Exception as e:
                 logging.error(e)
@@ -72,9 +85,30 @@ def dump_to_odc(
     default=False,
     help="Expect STAC 1.0 metadata and attempt to transform to ODC EO3 metadata",
 )
+@click.option(
+    "--update",
+    is_flag=True,
+    default=False,
+    help="If set, update instead of add datasets",
+)
+@click.option(
+    "--allow-unsafe",
+    is_flag=True,
+    default=False,
+    help="Allow unsafe changes to a dataset. Take care!",
+)
 @click.argument("uri", type=str, nargs=1)
 @click.argument("product", type=str, nargs=1)
-def cli(skip_lineage, fail_on_missing_lineage, verify_lineage, stac, uri, product):
+def cli(
+    skip_lineage,
+    fail_on_missing_lineage,
+    verify_lineage,
+    stac,
+    update,
+    allow_unsafe,
+    uri,
+    product,
+):
     """ Iterate through files in an S3 bucket and add them to datacube"""
 
     transform = None
@@ -104,6 +138,8 @@ def cli(skip_lineage, fail_on_missing_lineage, verify_lineage, stac, uri, produc
         fail_on_missing_lineage=fail_on_missing_lineage,
         verify_lineage=verify_lineage,
         transform=transform,
+        update=update,
+        allow_unsafe=allow_unsafe,
     )
 
     print(f"Added {added} Datasets, Failed {failed} Datasets")
