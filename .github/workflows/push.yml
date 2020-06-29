@@ -45,7 +45,7 @@ jobs:
         image_name: ${{ env.IMAGE_NAME }}
         username: "${{ secrets.DOCKER_USER }}"
         password: "${{ secrets.DOCKER_PASS }}"
-        image_tag: ${{ env.RELEASE }}
+        image_tag: latest,${{ env.RELEASE }}
 
     - name: Build and Push unstable Docker Image from PR / Push to Master
       continue-on-error: true
