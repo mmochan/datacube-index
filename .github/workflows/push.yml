@@ -43,15 +43,15 @@ jobs:
       if: github.event_name == 'release'
       with:
         image_name: ${{ env.IMAGE_NAME }}
-        username: "${{ secrets.DOCKER_USER }}"
-        password: "${{ secrets.DOCKER_PASS }}"
-        image_tag: latest,${{ env.RELEASE }}
+        username: ${{ secrets.DOCKER_USER }}
+        password: ${{ secrets.DOCKER_PASS }}
+        image_tag: ${{ env.RELEASE }}
 
     - name: Build and Push unstable Docker Image from PR / Push to Master
       continue-on-error: true
       uses: whoan/docker-build-with-cache-action@v4
       with:
         image_name: ${{ env.IMAGE_NAME }}
-        username: "${{ secrets.DOCKER_USER }}"
-        password: "${{ secrets.DOCKER_PASS }}"
-        image_tag: "unstable-${{ env.GITHASH }}"
+        username: ${{ secrets.DOCKER_USER }}
+        password: ${{ secrets.DOCKER_PASS }}
+        image_tag: latest,unstable-${{ env.GITHASH }}
