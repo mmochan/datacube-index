@@ -3,11 +3,13 @@
 """
 import json
 import logging
-import sys
+import uuid
 from typing import Tuple
 
 import boto3
 import click
+import requests
+from ruamel.yaml import YAML
 from datacube import Datacube
 from datacube.index.hl import Doc2Dataset
 from datacube.utils import changes
@@ -21,16 +23,19 @@ def queue_to_odc(
     transform=None,
     limit=None,
     update=False,
+    archive=False,
     allow_unsafe=False,
     **kwargs,
 ) -> Tuple[int, int]:
 
     ds_added = 0
+    ds_updated = 0
+    ds_archived = 0
     ds_failed = 0
 
     queue_empty = False
 
-    while not queue_empty and (not limit or ds_added + ds_failed < limit):
+    while not queue_empty and (not limit or ds_added + ds_updated + ds_archived + ds_failed < limit):
         messages = queue.receive_messages(
             VisibilityTimeout=60,
             MaxNumberOfMessages=1,
@@ -42,41 +47,58 @@ def queue_to_odc(
             message = messages[0]
             body = json.loads(message.body)
             metadata = json.loads(body["Message"])
+            if archive:
+                ids = [uuid.UUID(metadata.get("id"))]
 
-            uri = None
-            for link in metadata.get("links"):
-                rel = link.get("rel")
-                if rel and rel == "self":
-                    uri = link.get("href")
-
-            if transform:
-                metadata = transform(metadata)
-
-            doc2ds = Doc2Dataset(dc.index, **kwargs)
-
-            if uri is not None:
-                ds, err = doc2ds(metadata, uri)
-                if ds is not None:
-                    if update:
-                        updates = {}
-                        if allow_unsafe:
-                            updates = {tuple(): changes.allow_any}
-                        dc.index.datasets.update(ds, updates_allowed=updates)
-                    else:
-                        dc.index.datasets.add(ds)
+                if ids:
+                    dc.index.datasets.archive(ids)
+                    ds_archived += 1
                 else:
-                    logging.error(f"Error parsing dataset {uri} with error {err}")
+                    logging.error("Archive skipped as failed to get ID")
                     ds_failed += 1
             else:
-                logging.error("Failed to get URI from metadata doc")
-                ds_failed += 1
+                metadata_uri = None
+                uri = None
+                for link in metadata.get("links"):
+                    rel = link.get("rel")
+                    if rel and rel == "derived_from":
+                        metadata_uri = link.get("href")
+                    elif rel and rel == "self":
+                        uri = link.get("href")
+
+                if metadata_uri:
+                    metadata = YAML().load(requests.get(metadata_uri).content)
+                    uri = metadata_uri
+                elif transform:
+                    metadata = transform(metadata)
+
+                doc2ds = Doc2Dataset(dc.index, **kwargs)
+
+                if uri is not None:
+                    ds, err = doc2ds(metadata, uri)
+                    if ds is not None:
+                        if update:
+                            updates = {}
+                            if allow_unsafe:
+                                updates = {tuple(): changes.allow_any}
+                            dc.index.datasets.update(ds, updates_allowed=updates)
+                            ds_updated += 1
+                        else:
+                            dc.index.datasets.add(ds)
+                            ds_added += 1
+                    else:
+                        logging.error(f"Error parsing dataset {uri} with error {err}")
+                        ds_failed += 1
+                else:
+                    logging.error("Failed to get URI from metadata doc")
+                    ds_failed += 1
             # Success, so delete the message.
             message.delete()
         else:
             logging.info("No more messages...")
             queue_empty = True
 
-    return ds_added, ds_failed
+    return ds_added, ds_updated, ds_archived, ds_failed
 
 
 @click.command("sqs-to-dc")
@@ -120,6 +142,12 @@ def queue_to_odc(
     help="If set, update instead of add datasets",
 )
 @click.option(
+    "--archive",
+    is_flag=True,
+    default=False,
+    help="If set, archive datasets",
+)
+@click.option(
     "--allow-unsafe",
     is_flag=True,
     default=False,
@@ -134,6 +162,7 @@ def cli(
     stac,
     limit,
     update,
+    archive,
     allow_unsafe,
     queue_name,
     product,
@@ -151,7 +180,7 @@ def cli(
 
     # Do the thing
     dc = Datacube()
-    added, failed = queue_to_odc(
+    added, updated, archived, failed = queue_to_odc(
         queue,
         dc,
         candidate_products,
@@ -161,10 +190,11 @@ def cli(
         transform=transform,
         limit=limit,
         update=update,
+        archive=archive,
         allow_unsafe=allow_unsafe,
     )
 
-    print(f"Added {added} Datasets, Failed {failed} Datasets")
+    print(f"Added {added} Dataset(s), Updated {updated} Dataset(s), Archived {archived} Dataset(s), Failed {failed} Dataset(s)")
 
 
 if __name__ == "__main__":
