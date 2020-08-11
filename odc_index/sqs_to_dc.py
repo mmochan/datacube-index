@@ -35,7 +35,9 @@ def queue_to_odc(
 
     queue_empty = False
 
-    while not queue_empty and (not limit or ds_added + ds_updated + ds_archived + ds_failed < limit):
+    while not queue_empty and (
+        not limit or ds_added + ds_updated + ds_archived + ds_failed < limit
+    ):
         messages = queue.receive_messages(
             VisibilityTimeout=60,
             MaxNumberOfMessages=1,
@@ -142,10 +144,7 @@ def queue_to_odc(
     help="If set, update instead of add datasets",
 )
 @click.option(
-    "--archive",
-    is_flag=True,
-    default=False,
-    help="If set, archive datasets",
+    "--archive", is_flag=True, default=False, help="If set, archive datasets",
 )
 @click.option(
     "--allow-unsafe",
@@ -194,7 +193,12 @@ def cli(
         allow_unsafe=allow_unsafe,
     )
 
-    print(f"Added {added} Dataset(s), Updated {updated} Dataset(s), Archived {archived} Dataset(s), Failed {failed} Dataset(s)")
+    print(
+        f"Added {added} Dataset(s), "
+        f"Updated {updated} Dataset(s), "
+        f"Archived {archived} Dataset(s), "
+        f"Failed {failed} Dataset(s)"
+    )
 
 
 if __name__ == "__main__":
