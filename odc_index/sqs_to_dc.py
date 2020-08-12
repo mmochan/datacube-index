@@ -25,6 +25,7 @@ def queue_to_odc(
     update=False,
     archive=False,
     allow_unsafe=False,
+    odc_metadata_link=False,
     **kwargs,
 ) -> Tuple[int, int]:
 
@@ -63,7 +64,7 @@ def queue_to_odc(
                 uri = None
                 for link in metadata.get("links"):
                     rel = link.get("rel")
-                    if rel and rel == "odc_yaml":
+                    if odc_metadata_link and rel and rel == "odc_yaml":
                         metadata_uri = link.get("href")
                     elif rel and rel == "self":
                         uri = link.get("href")
@@ -71,7 +72,10 @@ def queue_to_odc(
                 if metadata_uri:
                     metadata = YAML().load(requests.get(metadata_uri).content)
                     uri = metadata_uri
-                elif transform:
+                else:
+                    logging.error("ODC EO3 metadata link not found")
+
+                if transform:
                     metadata = transform(metadata)
 
                 doc2ds = Doc2Dataset(dc.index, **kwargs)
@@ -132,6 +136,12 @@ def queue_to_odc(
     help="Expect STAC 1.0 metadata and attempt to transform to ODC EO3 metadata",
 )
 @click.option(
+    "--odc-metadata-link",
+    is_flag=True,
+    default=False,
+    help="Expect metadata doc with ODC EO3 metadata link",
+)
+@click.option(
     "--limit",
     default=None,
     type=int,
@@ -159,6 +169,7 @@ def cli(
     fail_on_missing_lineage,
     verify_lineage,
     stac,
+    odc_metadata_link,
     limit,
     update,
     archive,
@@ -191,6 +202,7 @@ def cli(
         update=update,
         archive=archive,
         allow_unsafe=allow_unsafe,
+        odc_metadata_link=odc_metadata_link,
     )
 
     print(
