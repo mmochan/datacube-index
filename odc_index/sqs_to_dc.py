@@ -16,6 +16,13 @@ from datacube.utils import changes
 from odc.index.stac import stac_transform
 
 
+# Added log handler
+logging.basicConfig(
+    level=logging.INFO,
+    handlers=[logging.StreamHandler()]
+)
+
+
 def queue_to_odc(
     queue,
     dc: Datacube,
