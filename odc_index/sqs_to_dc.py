@@ -63,7 +63,7 @@ def queue_to_odc(
                 uri = None
                 for link in metadata.get("links"):
                     rel = link.get("rel")
-                    if rel and rel == "derived_from":
+                    if rel and rel == "odc_yaml":
                         metadata_uri = link.get("href")
                     elif rel and rel == "self":
                         uri = link.get("href")
