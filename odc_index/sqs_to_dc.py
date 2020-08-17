@@ -9,10 +9,9 @@ from typing import Tuple
 import boto3
 import click
 import requests
-from ruamel.yaml import YAML
 from datacube import Datacube
 from datacube.index.hl import Doc2Dataset
-from datacube.utils import changes
+from datacube.utils import changes, documents
 from odc.index.stac import stac_transform
 
 
@@ -33,16 +32,14 @@ def queue_to_odc(
     **kwargs,
 ) -> Tuple[int, int]:
 
-    ds_added = 0
-    ds_updated = 0
-    ds_archived = 0
+    ds_success = 0
     ds_failed = 0
 
     queue_empty = False
 
-    while not queue_empty and (
-        not limit or ds_added + ds_updated + ds_archived + ds_failed < limit
-    ):
+    doc2ds = Doc2Dataset(dc.index, **kwargs)
+
+    while not queue_empty and (not limit or ds_success + ds_failed < limit):
         messages = queue.receive_messages(
             VisibilityTimeout=60,
             MaxNumberOfMessages=1,
@@ -55,60 +52,96 @@ def queue_to_odc(
             body = json.loads(message.body)
             metadata = json.loads(body["Message"])
             if archive:
-                ids = [uuid.UUID(metadata.get("id"))]
-
-                if ids:
-                    dc.index.datasets.archive(ids)
-                    ds_archived += 1
+                archive_success = do_archiving(metadata, dc)
+                if archive_success:
+                    ds_success += 1
                 else:
-                    logging.error("Archive skipped as failed to get ID")
                     ds_failed += 1
             else:
-                metadata_uri = None
-                uri = None
-                for link in metadata.get("links"):
-                    rel = link.get("rel")
-                    if odc_metadata_link and rel and rel == "odc_yaml":
-                        metadata_uri = link.get("href")
-                    elif rel and rel == "self":
-                        uri = link.get("href")
 
-                if metadata_uri:
-                    metadata = YAML().load(requests.get(metadata_uri).content)
-                    uri = metadata_uri
+                # Extract metadata and URI for indexing/archiving
+                metadata, uri = get_metadata_uri(metadata, odc_metadata_link, transform)
+
+                # Index/archive metadata
+                index_success = do_indexing(
+                    metadata, uri, dc, doc2ds, update, archive, allow_unsafe
+                )
+                if index_success:
+                    ds_success += 1
                 else:
-                    logging.error("ODC EO3 metadata link not found")
-
-                if transform:
-                    metadata = transform(metadata)
-
-                doc2ds = Doc2Dataset(dc.index, **kwargs)
-
-                if uri is not None:
-                    ds, err = doc2ds(metadata, uri)
-                    if ds is not None:
-                        if update:
-                            updates = {}
-                            if allow_unsafe:
-                                updates = {tuple(): changes.allow_any}
-                            dc.index.datasets.update(ds, updates_allowed=updates)
-                            ds_updated += 1
-                        else:
-                            dc.index.datasets.add(ds)
-                            ds_added += 1
-                    else:
-                        logging.error(f"Error parsing dataset {uri} with error {err}")
-                        ds_failed += 1
-                else:
-                    logging.error("Failed to get URI from metadata doc")
                     ds_failed += 1
+
             # Success, so delete the message.
             message.delete()
         else:
             logging.info("No more messages...")
             queue_empty = True
 
-    return ds_added, ds_updated, ds_archived, ds_failed
+    return ds_success, ds_failed
+
+
+def get_metadata_uri(metadata, odc_metadata_link, transform):
+    metadata_uri = None
+    uri = None
+    for link in metadata.get("links"):
+        rel = link.get("rel")
+        if odc_metadata_link and rel and rel == "odc_yaml":
+            metadata_uri = link.get("href")
+        elif rel and rel == "self":
+            uri = link.get("href")
+
+    if metadata_uri:
+        try:
+            content = requests.get(metadata_uri).content
+            metadata = documents.parse_yaml(content)
+            uri = metadata_uri
+        except requests.RequestException as err:
+            logging.error(f"Failed to load metadata from the link provided -  {err}")
+    else:
+        logging.error("ODC EO3 metadata link not found")
+
+    if transform:
+        metadata = transform(metadata)
+
+    return metadata, uri
+
+
+def do_archiving(metadata, dc: Datacube):
+    ds_success = False
+    ids = [uuid.UUID(metadata.get("id"))]
+
+    if ids:
+        dc.index.datasets.archive(ids)
+        ds_success = True
+    else:
+        logging.error("Archive skipped as failed to get ID")
+    return ds_success
+
+
+def do_indexing(
+    metadata, uri, dc: Datacube, doc2ds: Doc2Dataset, update=False, allow_unsafe=False
+) -> Tuple[int, int]:
+
+    ds_success = False
+
+    if uri is not None:
+        ds, err = doc2ds(metadata, uri)
+        if ds is not None:
+            if update:
+                updates = {}
+                if allow_unsafe:
+                    updates = {tuple(): changes.allow_any}
+                dc.index.datasets.update(ds, updates_allowed=updates)
+                ds_success = True
+            else:
+                dc.index.datasets.add(ds)
+                ds_success = True
+        else:
+            logging.error(f"Error parsing dataset {uri} with error {err}")
+    else:
+        logging.error("Failed to get URI from metadata doc")
+
+    return ds_success
 
 
 @click.command("sqs-to-dc")
@@ -194,7 +227,7 @@ def cli(
 
     # Do the thing
     dc = Datacube()
-    added, updated, archived, failed = queue_to_odc(
+    success, failed = queue_to_odc(
         queue,
         dc,
         candidate_products,
@@ -209,12 +242,15 @@ def cli(
         odc_metadata_link=odc_metadata_link,
     )
 
-    print(
-        f"Added {added} Dataset(s), "
-        f"Updated {updated} Dataset(s), "
-        f"Archived {archived} Dataset(s), "
-        f"Failed {failed} Dataset(s)"
-    )
+    result_msg = ""
+    if update:
+        result_msg += f"Updated {success} Dataset(s), "
+    elif archive:
+        result_msg += f"Archived {success} Dataset(s), "
+    else:
+        result_msg += f"Added {success} Dataset(s), "
+    result_msg += f"Failed {failed} Dataset(s)"
+    print(result_msg)
 
 
 if __name__ == "__main__":
