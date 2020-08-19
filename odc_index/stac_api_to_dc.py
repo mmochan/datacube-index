@@ -33,7 +33,7 @@ def stac_api_to_odc(
 
     if bbox:
         bbox = list(map(float, bbox.split(",")))
-        assert len(bbox) == 4
+        assert len(bbox) == 4, "bounding box must be of the form lon-min,lat-min,lon-max,lat-max"
 
     if collections:
         collections = collections.split(",")
