@@ -33,7 +33,9 @@ def stac_api_to_odc(
 
     if bbox:
         bbox = list(map(float, bbox.split(",")))
-        assert len(bbox) == 4, "bounding box must be of the form lon-min,lat-min,lon-max,lat-max"
+        assert (
+            len(bbox) == 4
+        ), "bounding box must be of the form lon-min,lat-min,lon-max,lat-max"
 
     if collections:
         collections = collections.split(",")
@@ -65,14 +67,6 @@ def stac_api_to_odc(
                         id = os.path.basename(path)
                         uri = f"{path}/{id}.json"
                         break
-            for link in metadata.get("links"):
-                rel = link.get("rel")
-                if rel and rel == "self":
-                    if not uri:
-                        uri = link.get("href")
-                    else:
-                        print(link.get("href"))
-                    break
 
             if transform:
                 metadata = transform(metadata)
