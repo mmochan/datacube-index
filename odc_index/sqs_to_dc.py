@@ -5,6 +5,7 @@ import json
 import logging
 import uuid
 from typing import Tuple
+from toolz import dicttoolz
 
 import boto3
 import click
@@ -40,65 +41,82 @@ def queue_to_odc(
     doc2ds = Doc2Dataset(dc.index, **kwargs)
 
     while not queue_empty and (not limit or ds_success + ds_failed < limit):
-        messages = queue.receive_messages(
-            VisibilityTimeout=60,
-            MaxNumberOfMessages=1,
-            WaitTimeSeconds=10,
-            MessageAttributeNames=["All"],
-        )
+        try:
+            messages = queue.receive_messages(
+                VisibilityTimeout=60,
+                MaxNumberOfMessages=1,
+                WaitTimeSeconds=10,
+                MessageAttributeNames=["All"],
+            )
 
-        if len(messages) > 0:
-            message = messages[0]
-            body = json.loads(message.body)
-            metadata = json.loads(body["Message"])
-            if archive:
-                archive_success = do_archiving(metadata, dc)
-                if archive_success:
+            if len(messages) > 0:
+                for message in messages:
+                    # Extract metadata from message
+                    metadata = extract_metadata_from_message(message)
+                    if archive:
+                        # Archive metadata
+                        do_archiving(metadata, dc)
+                    else:
+                        # Extract metadata and URI for indexing
+                        metadata, uri = get_metadata_uri(
+                            metadata, transform, odc_metadata_link
+                        )
+                        # Index metadata
+                        do_indexing(metadata, uri, dc, doc2ds, update, allow_unsafe)
                     ds_success += 1
-                else:
-                    ds_failed += 1
+                    # Success, so delete the message.
+                    message.delete()
             else:
-
-                # Extract metadata and URI for indexing/archiving
-                metadata, uri = get_metadata_uri(metadata, odc_metadata_link, transform)
-
-                # Index/archive metadata
-                index_success = do_indexing(
-                    metadata, uri, dc, doc2ds, update, archive, allow_unsafe
-                )
-                if index_success:
-                    ds_success += 1
-                else:
-                    ds_failed += 1
-
-            # Success, so delete the message.
-            message.delete()
-        else:
-            logging.info("No more messages...")
-            queue_empty = True
-
+                logging.info("No more messages...")
+                queue_empty = True
+        except SQStoDCException as err:
+            logging.error(err)
+            ds_failed += 1
     return ds_success, ds_failed
 
 
-def get_metadata_uri(metadata, odc_metadata_link, transform):
-    metadata_uri = None
-    uri = None
-    for link in metadata.get("links"):
-        rel = link.get("rel")
-        if odc_metadata_link and rel and rel == "odc_yaml":
-            metadata_uri = link.get("href")
-        elif rel and rel == "self":
-            uri = link.get("href")
+def extract_metadata_from_message(message):
+    try:
+        body = json.loads(message.body)
+        metadata = json.loads(body["Message"])
+    except KeyError as ke:
+        raise SQStoDCException(
+            f"Failed to load metadata from the SQS message due to Key Error - {ke}"
+        )
 
-    if metadata_uri:
-        try:
-            content = requests.get(metadata_uri).content
-            metadata = documents.parse_yaml(content)
-            uri = metadata_uri
-        except requests.RequestException as err:
-            logging.error(f"Failed to load metadata from the link provided -  {err}")
+    if metadata:
+        return metadata
     else:
-        logging.error("ODC EO3 metadata link not found")
+        raise SQStoDCException(f"Failed to load metadata from the SQS message")
+
+
+def get_metadata_uri(metadata, transform, odc_metadata_link):
+    odc_yaml_uri = None
+    uri = None
+
+    if odc_metadata_link:
+        if odc_metadata_link.startswith("STAC-LINKS-REL:"):
+            rel_val = odc_metadata_link.replace("STAC-LINKS-REL:", "")
+            odc_yaml_uri = get_uri(metadata, rel_val)
+        else:
+            # if odc_metadata_link is provided, it will look for value with dict path provided
+            odc_yaml_uri = dicttoolz.get_in(odc_metadata_link.split("/"), metadata)
+
+        # if odc_yaml_uri exist, it will load the metadata content from that URL
+        if odc_yaml_uri:
+            try:
+                content = requests.get(odc_yaml_uri).content
+                metadata = documents.parse_yaml(content)
+                uri = odc_yaml_uri
+            except requests.RequestException as err:
+                raise SQStoDCException(
+                    f"Failed to load metadata from the link provided -  {err}"
+                )
+        else:
+            raise SQStoDCException("ODC EO3 metadata link not found")
+    else:
+        # if no odc_metadata_link provided, it will look for metadata dict "href" value with "rel==self"
+        uri = get_uri(metadata, "self")
 
     if transform:
         metadata = transform(metadata)
@@ -106,23 +124,26 @@ def get_metadata_uri(metadata, odc_metadata_link, transform):
     return metadata, uri
 
 
-def do_archiving(metadata, dc: Datacube):
-    ds_success = False
-    ids = [uuid.UUID(metadata.get("id"))]
+def get_uri(metadata, rel_value):
+    uri = None
+    for link in metadata.get("links"):
+        rel = link.get("rel")
+        if rel and rel == rel_value:
+            uri = link.get("href")
+    return uri
 
+
+def do_archiving(metadata, dc: Datacube):
+    ids = [uuid.UUID(metadata.get("id"))]
     if ids:
         dc.index.datasets.archive(ids)
-        ds_success = True
     else:
-        logging.error("Archive skipped as failed to get ID")
-    return ds_success
+        raise SQStoDCException("Archive skipped as failed to get ID")
 
 
 def do_indexing(
     metadata, uri, dc: Datacube, doc2ds: Doc2Dataset, update=False, allow_unsafe=False
-) -> Tuple[int, int]:
-
-    ds_success = False
+):
 
     if uri is not None:
         ds, err = doc2ds(metadata, uri)
@@ -132,16 +153,20 @@ def do_indexing(
                 if allow_unsafe:
                     updates = {tuple(): changes.allow_any}
                 dc.index.datasets.update(ds, updates_allowed=updates)
-                ds_success = True
             else:
                 dc.index.datasets.add(ds)
-                ds_success = True
         else:
-            logging.error(f"Error parsing dataset {uri} with error {err}")
+            raise SQStoDCException(f"Error parsing dataset {uri} with error {err}")
     else:
-        logging.error("Failed to get URI from metadata doc")
+        raise SQStoDCException("Failed to get URI from metadata doc")
 
-    return ds_success
+
+class SQStoDCException(Exception):
+    """
+    Exception to raise for error during SQS to DC indexing/archiving
+    """
+
+    pass
 
 
 @click.command("sqs-to-dc")
@@ -174,9 +199,12 @@ def do_indexing(
 )
 @click.option(
     "--odc-metadata-link",
-    is_flag=True,
-    default=False,
-    help="Expect metadata doc with ODC EO3 metadata link",
+    default=None,
+    help="Expect metadata doc with ODC EO3 metadata link. "
+    "Either provide '/' separated path to find metadata link in a provided "
+    "metadata doc e.g. 'foo/bar/link', or if metadata doc is STAC, "
+    "provide 'rel' value of the 'links' object having "
+    "metadata link. e.g. 'STAC-LINKS-REL:odc_yaml'",
 )
 @click.option(
     "--limit",
