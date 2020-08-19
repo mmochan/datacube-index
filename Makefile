@@ -41,3 +41,12 @@ product-s2-nbar:
 index-s2-nbar-test:
 	docker-compose exec dc-index \
 		/code/index-sentinel-2.py --start-date 2020-06-01 --end-date 2020-07-01 "ga_s2a_ard_nbar_granule ga_s2b_ard_nbar_granule"
+
+index-stac-api:
+	docker-compose exec dc-index \
+		python /code/odc_index/stac_api_to_dc.py \
+		--stac \
+		--bbox='-20,30,20,40' \
+		--collections='sentinel-s2-l2a-cogs' \
+		--datetime='2020-08-01/2020-08-02' \
+		s2_l2a

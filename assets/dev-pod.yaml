@@ -8,7 +8,7 @@ metadata:
 spec:
   containers:
   - name: datacube-indexer-dev
-    image: opendatacube/datacube-index:0.0.7
+    image: opendatacube/datacube-index:0.0.8
     env:
     - name: DB_USERNAME
       valueFrom:
@@ -21,22 +21,22 @@ spec:
           name: ows-db
           key: postgres-password
     - name: DB_DATABASE
-      value: "ows"
+      value: "africa"
     - name: DB_HOSTNAME
       value: "database-write.local"
     - name: AWS_DEFAULT_REGION
       valueFrom:
         secretKeyRef:
-          name: processing-aws-creds-dev
+          name: indexing-aws-creds-prod
           key: AWS_DEFAULT_REGION
     - name: AWS_ACCESS_KEY_ID
       valueFrom:
         secretKeyRef:
-          name: processing-aws-creds-dev
+          name: indexing-aws-creds-prod
           key: AWS_ACCESS_KEY_ID
     - name: AWS_SECRET_ACCESS_KEY
       valueFrom:
         secretKeyRef:
-          name: processing-aws-creds-dev
+          name: indexing-aws-creds-prod
           key: AWS_SECRET_ACCESS_KEY
     command: ["/bin/sh", "-ec", "while :; do echo '.'; sleep 5 ; done"]
