@@ -32,11 +32,11 @@ def stac_api_to_odc(
     ds_failed = 0
 
     if bbox:
-        bbox = list(map(float, bbox.split(',')))
+        bbox = list(map(float, bbox.split(",")))
         assert len(bbox) == 4
 
     if collections:
-        collections = collections.split(',')
+        collections = collections.split(",")
 
     srch = Search().search(datetime=datetime, collections=collections, bbox=bbox)
 
@@ -49,7 +49,7 @@ def stac_api_to_odc(
             items = srch.items(limit=limit)
         else:
             items = srch.items()
-        for metadata in items.geojson()['features']:
+        for metadata in items.geojson()["features"]:
 
             # This is a horrible hack, but we want a path to the
             # data, which is probably S3... Pick the first COG
@@ -57,8 +57,11 @@ def stac_api_to_odc(
             uri = None
             if metadata.get("assets"):
                 for asset in metadata["assets"].values():
-                    if asset.get('type') == "image/tiff; application=geotiff; profile=cloud-optimized":
-                        path = os.path.dirname(asset['href'])
+                    if (
+                        asset.get("type")
+                        == "image/tiff; application=geotiff; profile=cloud-optimized"
+                    ):
+                        path = os.path.dirname(asset["href"])
                         id = os.path.basename(path)
                         uri = f"{path}/{id}.json"
                         break
@@ -149,19 +152,19 @@ def stac_api_to_odc(
     "--collections",
     type=str,
     default=None,
-    help="Comma separated list of collections to search"
+    help="Comma separated list of collections to search",
 )
 @click.option(
     "--bbox",
     type=str,
     default=None,
-    help="Comma separated list of bounding box coords, lon-min, lat-min, lon-max, lat-max"
+    help="Comma separated list of bounding box coords, lon-min, lat-min, lon-max, lat-max",
 )
 @click.option(
     "--datetime",
     type=str,
     default=None,
-    help="Dates to search, either one day or an inclusive range, e.g. 2020-01-01 or 2020-01-01/2020-01-02"
+    help="Dates to search, either one day or an inclusive range, e.g. 2020-01-01 or 2020-01-01/2020-01-02",
 )
 @click.argument("product", type=str, nargs=1)
 def cli(
@@ -175,7 +178,7 @@ def cli(
     collections,
     bbox,
     datetime,
-    product
+    product,
 ):
     """ 
     Iterate through STAC items from a STAC API and add them to datacube
@@ -203,7 +206,7 @@ def cli(
         allow_unsafe=allow_unsafe,
         datetime=datetime,
         bbox=bbox,
-        collections=collections
+        collections=collections,
     )
 
     print(f"Added {added} Datasets, Failed {failed} Datasets")
