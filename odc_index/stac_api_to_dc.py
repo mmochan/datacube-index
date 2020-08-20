@@ -7,6 +7,8 @@ import sys
 from typing import Tuple
 import os
 
+from typing import Generator
+
 import click
 from datacube import Datacube
 from datacube.index.hl import Doc2Dataset
@@ -15,115 +17,120 @@ from odc.index.stac import stac_transform
 from satsearch import Search
 
 
-def stac_api_to_odc(
-    dc: Datacube,
-    products: list,
-    transform=None,
-    limit=None,
-    update=False,
-    allow_unsafe=False,
-    datetime=None,
-    bbox=None,
-    collections=None,
-    **kwargs,
-) -> Tuple[int, int]:
+def guess_location(metadata: dict) -> str:
+    # This is a horrible hack, but we want a path to the
+    # data, which is probably S3... Pick the first COG
+    # to use for this.
+    if metadata.get("assets"):
+        for asset in metadata["assets"].values():
+            if asset.get("type") in [
+                "image/tiff; application=geotiff; profile=cloud-optimized",
+                "image/tiff; application=geotiff",
+            ]:
+                path = os.path.dirname(asset["href"])
+                id = os.path.basename(path)
+                # This is a massive assumption
+                return f"{path}/{id}.json"
 
+
+def get_items(srch: Search, limit: bool) -> Generator[Tuple[dict, str], None, None]:
+    if limit:
+        items = srch.items(limit=limit)
+    else:
+        items = srch.items()
+
+    for metadata in items.geojson()["features"]:
+        uri = guess_location(metadata)
+        yield (metadata, uri)
+
+
+def transform_items(
+    dc: Datacube, items: Tuple[dict, str]
+) -> Generator[Tuple[dict, str], None, None]:
+    doc2ds = Doc2Dataset(dc.index)
+
+    for metadata, uri in items:
+        try:
+            metadata = stac_transform(metadata)
+        except KeyError as e:
+            logging.error(f"Failed to handle item at {uri} with error {e}")
+            continue
+        ds, err = doc2ds(metadata, uri)
+        if ds is not None:
+            yield ds, uri
+        else:
+            logging.error(f"Failed to create dataset with error {err}")
+
+
+def index_update_datasets(
+    dc: Datacube, datasets: Tuple[dict, str], update: bool, allow_unsafe: bool
+) -> Tuple[int, int]:
     ds_added = 0
     ds_failed = 0
 
-    if bbox:
-        bbox = list(map(float, bbox.split(",")))
-        assert (
-            len(bbox) == 4
-        ), "bounding box must be of the form lon-min,lat-min,lon-max,lat-max"
-
-    if collections:
-        collections = collections.split(",")
-
-    srch = Search().search(datetime=datetime, collections=collections, bbox=bbox)
-
-    n_items = srch.found()
-    print("Found {} items to index".format(n_items))
-
-    if n_items > 0:
-        doc2ds = Doc2Dataset(dc.index, **kwargs)
-        if limit:
-            items = srch.items(limit=limit)
-        else:
-            items = srch.items()
-        for metadata in items.geojson()["features"]:
-
-            # This is a horrible hack, but we want a path to the
-            # data, which is probably S3... Pick the first COG
-            # to use for this.
-            uri = None
-            if metadata.get("assets"):
-                for asset in metadata["assets"].values():
-                    if (
-                        asset.get("type")
-                        == "image/tiff; application=geotiff; profile=cloud-optimized"
-                    ):
-                        path = os.path.dirname(asset["href"])
-                        id = os.path.basename(path)
-                        uri = f"{path}/{id}.json"
-                        break
-
-            if transform:
-                metadata = transform(metadata)
-
-            print(uri)
-
-            if uri is not None:
-                ds, err = doc2ds(metadata, uri)
-                if ds is not None:
-                    if update:
-                        updates = {}
-                        if allow_unsafe:
-                            updates = {tuple(): changes.allow_any}
-                        dc.index.datasets.update(ds, updates_allowed=updates)
-                    else:
-                        ds_added += 1
-                        dc.index.datasets.add(ds)
+    for dataset, uri in datasets:
+        if uri is not None:
+            if dataset is not None:
+                if update:
+                    updates = {}
+                    if allow_unsafe:
+                        updates = {tuple(): changes.allow_any}
+                    dc.index.datasets.update(dataset, updates_allowed=updates)
                 else:
-                    logging.error(f"Error parsing dataset {uri} with error {err}")
-                    ds_failed += 1
+                    ds_added += 1
+                    dc.index.datasets.add(dataset)
             else:
-                logging.error("Failed to get URI from metadata doc")
                 ds_failed += 1
-    else:
-        print("Didn't find any items, finishing.")
+        else:
+            ds_failed += 1
 
     return ds_added, ds_failed
 
 
+def stac_api_to_odc(
+    dc: Datacube,
+    products: list,
+    limit: int,
+    update: bool,
+    allow_unsafe: bool,
+    config: dict,
+    **kwargs,
+) -> Tuple[int, int]:
+
+    # QA the search terms
+    if config["bbox"]:
+        bbox = list(map(float, config["bbox"].split(",")))
+        assert (
+            len(bbox) == 4
+        ), "bounding box must be of the form lon-min,lat-min,lon-max,lat-max"
+        config["bbox"] = bbox
+
+    if config["collections"]:
+        config["collections"] = config["collections"].split(",")
+
+    # QA the search
+    srch = Search().search(**config)
+
+    n_items = srch.found()
+    logging.info("Found {} items to index".format(n_items))
+    if n_items > 10000:
+        logging.warning(
+            "More than 10,000 items were returned by your query, which is greater than the API limit"
+        )
+
+    if n_items == 0:
+        logging.warning("Didn't find any items, finishing.")
+        return 0, 0
+
+    # Get a generator of (uri, stac) tuples
+    potential_items = get_items(srch, limit)
+
+    datasets = transform_items(dc, potential_items)
+
+    return index_update_datasets(dc, datasets, update, allow_unsafe)
+
+
 @click.command("sqs-to-dc")
-@click.option(
-    "--skip-lineage",
-    is_flag=True,
-    default=False,
-    help="Default is not to skip lineage. Set to skip lineage altogether.",
-)
-@click.option(
-    "--fail-on-missing-lineage/--auto-add-lineage",
-    is_flag=True,
-    default=True,
-    help=(
-        "Default is to fail if lineage documents not present in the database. "
-        "Set auto add to try to index lineage documents."
-    ),
-)
-@click.option(
-    "--verify-lineage",
-    is_flag=True,
-    default=False,
-    help="Default is no verification. Set to verify parent dataset definitions.",
-)
-@click.option(
-    "--stac",
-    is_flag=True,
-    default=False,
-    help="Expect STAC 1.0 metadata and attempt to transform to ODC EO3 metadata",
-)
 @click.option(
     "--limit",
     default=None,
@@ -162,17 +169,7 @@ def stac_api_to_odc(
 )
 @click.argument("product", type=str, nargs=1)
 def cli(
-    skip_lineage,
-    fail_on_missing_lineage,
-    verify_lineage,
-    stac,
-    limit,
-    update,
-    allow_unsafe,
-    collections,
-    bbox,
-    datetime,
-    product,
+    limit, update, allow_unsafe, collections, bbox, datetime, product,
 ):
     """ 
     Iterate through STAC items from a STAC API and add them to datacube
@@ -180,27 +177,18 @@ def cli(
     something like https://earth-search.aws.element84.com/v0/
     """
 
-    transform = None
-    if stac:
-        transform = stac_transform
-
     candidate_products = product.split()
+
+    config = {
+        "datetime": datetime,
+        "bbox": bbox,
+        "collections": collections,
+    }
 
     # Do the thing
     dc = Datacube()
     added, failed = stac_api_to_odc(
-        dc,
-        candidate_products,
-        skip_lineage=skip_lineage,
-        fail_on_missing_lineage=fail_on_missing_lineage,
-        verify_lineage=verify_lineage,
-        transform=transform,
-        limit=limit,
-        update=update,
-        allow_unsafe=allow_unsafe,
-        datetime=datetime,
-        bbox=bbox,
-        collections=collections,
+        dc, candidate_products, limit, update, allow_unsafe, config
     )
 
     print(f"Added {added} Datasets, Failed {failed} Datasets")

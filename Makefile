@@ -45,8 +45,7 @@ index-s2-nbar-test:
 index-stac-api:
 	docker-compose exec dc-index \
 		python /code/odc_index/stac_api_to_dc.py \
-		--stac \
 		--bbox='-20,30,20,40' \
 		--collections='sentinel-s2-l2a-cogs' \
-		--datetime='2020-08-01/2020-08-02' \
+		--datetime='2020-08-01/2020-08-31' \
 		s2_l2a
