@@ -13,7 +13,7 @@ import click
 from datacube import Datacube
 from datacube.index.hl import Doc2Dataset
 from datacube.utils import changes
-from stac import stac_transform, stac_transform_absolute
+from odc.index.stac import stac_transform, stac_transform_absolute
 from satsearch import Search
 
 
@@ -42,7 +42,9 @@ def guess_location(metadata: dict) -> [str, bool]:
     return self_link, relative
 
 
-def get_items(srch: Search, limit: bool) -> Generator[Tuple[dict, str, bool], None, None]:
+def get_items(
+    srch: Search, limit: bool
+) -> Generator[Tuple[dict, str, bool], None, None]:
     if limit:
         items = srch.items(limit=limit)
     else:
