@@ -37,7 +37,9 @@ def guess_location(metadata: dict) -> [str, bool]:
 
     # If the metadata and the document are not on the same path,
     # we need to use absolute links and not relative ones.
-    if os.path.basename(self_link) != os.path.basename(asset_link):
+    if (self_link and asset_link) and os.path.basename(self_link) != os.path.basename(
+        asset_link
+    ):
         relative = False
     return self_link, relative
 
