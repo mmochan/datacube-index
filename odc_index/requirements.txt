@@ -5,10 +5,10 @@ thredds-crawler
 wget
 requests
 datacube
-# Pinned for Alex to index STAC.
-sat-search==0.3.0-rc1
-odc-index==0.1.dev573+ge694e61
 odc-aws
 odc-aio
 odc-thredds
 odc-apps-cloud
+# Pinned for Alex to index STAC.
+sat-search==0.3.0-rc1
+odc-index==0.1.dev573+ge694e61
