@@ -7,51 +7,63 @@ import sys
 from typing import Tuple
 import os
 
-from typing import Generator
+from typing import Generator, List
 
 import click
 from datacube import Datacube
 from datacube.index.hl import Doc2Dataset
 from datacube.utils import changes
-from odc.index.stac import stac_transform
+from stac import stac_transform, stac_transform_absolute
 from satsearch import Search
 
 
-def guess_location(metadata: dict) -> str:
-    # This is a horrible hack, but we want a path to the
-    # data, which is probably S3... Pick the first COG
-    # to use for this.
+def guess_location(metadata: dict) -> [str, bool]:
+    self_link = None
+    asset_link = None
+    relative = True
+
+    for link in metadata.get("links"):
+        rel = link.get("rel")
+        if rel and rel == "self":
+            self_link = link.get("href")
+
     if metadata.get("assets"):
         for asset in metadata["assets"].values():
             if asset.get("type") in [
                 "image/tiff; application=geotiff; profile=cloud-optimized",
                 "image/tiff; application=geotiff",
             ]:
-                path = os.path.dirname(asset["href"])
-                id = os.path.basename(path)
-                # This is a massive assumption
-                return f"{path}/{id}.json"
+                asset_link = os.path.dirname(asset["href"])
+
+    # If the metadata and the document are not on the same path,
+    # we need to use absolute links and not relative ones.
+    if os.path.basename(self_link) != os.path.basename(asset_link):
+        relative = False
+    return self_link, relative
 
 
-def get_items(srch: Search, limit: bool) -> Generator[Tuple[dict, str], None, None]:
+def get_items(srch: Search, limit: bool) -> Generator[Tuple[dict, str, bool], None, None]:
     if limit:
         items = srch.items(limit=limit)
     else:
         items = srch.items()
 
     for metadata in items.geojson()["features"]:
-        uri = guess_location(metadata)
-        yield (metadata, uri)
+        uri, relative = guess_location(metadata)
+        yield (metadata, uri, relative)
 
 
 def transform_items(
-    dc: Datacube, items: Tuple[dict, str]
+    dc: Datacube, items: List[Tuple[dict, str, bool]]
 ) -> Generator[Tuple[dict, str], None, None]:
     doc2ds = Doc2Dataset(dc.index)
 
-    for metadata, uri in items:
+    for metadata, uri, relative in items:
         try:
-            metadata = stac_transform(metadata)
+            if relative:
+                metadata = stac_transform(metadata)
+            else:
+                metadata = stac_transform_absolute(metadata)
         except KeyError as e:
             logging.error(f"Failed to handle item at {uri} with error {e}")
             continue

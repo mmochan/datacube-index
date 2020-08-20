@@ -49,3 +49,12 @@ index-stac-api:
 		--collections='sentinel-s2-l2a-cogs' \
 		--datetime='2020-08-01/2020-08-31' \
 		s2_l2a
+
+index-stac-api-au:
+	docker-compose exec \
+		--env STAC_API_URL=https://explorer.sandbox.dea.ga.gov.au/stac/ \
+		dc-index \
+		python /code/odc_index/stac_api_to_dc.py \
+		--limit=10 \
+		s2_l2a
+	
