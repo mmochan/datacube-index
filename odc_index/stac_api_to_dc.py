@@ -67,12 +67,13 @@ def transform_items(
                 metadata = stac_transform_absolute(metadata)
         except KeyError as e:
             logging.error(f"Failed to handle item at {uri} with error {e}")
-            continue
+            yield None, None
         ds, err = doc2ds(metadata, uri)
         if ds is not None:
             yield ds, uri
         else:
             logging.error(f"Failed to create dataset with error {err}")
+            yield None, None
 
 
 def index_update_datasets(
@@ -109,20 +110,14 @@ def stac_api_to_odc(
     config: dict,
     **kwargs,
 ) -> Tuple[int, int]:
-    # QA the search terms
-    if config["bbox"]:
-        bbox = list(map(float, config["bbox"].split(",")))
+    # QA the BBOX
+    if config['bbox']:
         assert (
-            len(bbox) == 4
-        ), "bounding box must be of the form lon-min,lat-min,lon-max,lat-max"
-        config["bbox"] = bbox
-
-    if config["collections"]:
-        config["collections"] = config["collections"].split(",")
+            len(config['bbox']) == 4
+        ), "Bounding box must be of the form lon-min,lat-min,lon-max,lat-max"
 
     # QA the search
     srch = Search().search(**config)
-
     n_items = srch.found()
     logging.info("Found {} items to index".format(n_items))
     if n_items > 10000:
@@ -199,6 +194,13 @@ def cli(
         "bbox": bbox,
         "collections": collections,
     }
+
+    # Format the search terms
+    if bbox:
+        config['bbox'] = list(map(float, config["bbox"].split(",")))
+
+    if config["collections"]:
+        config["collections"] = config["collections"].split(",")
 
     # Do the thing
     dc = Datacube()

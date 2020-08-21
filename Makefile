@@ -46,7 +46,7 @@ index-stac-api:
 	docker-compose exec dc-index \
 		python /code/odc_index/stac_api_to_dc.py \
 		--bbox='-20,30,20,40' \
-		--limit=2 \
+		--limit=1000 \
 		--collections='sentinel-s2-l2a-cogs' \
 		--datetime='2020-08-01/2020-08-31' \
 		s2_l2a
