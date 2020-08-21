@@ -40,10 +40,8 @@ def guess_location(metadata: dict) -> [str, bool]:
     if (self_link and asset_link) and os.path.dirname(self_link) != os.path.dirname(
         asset_link
     ):
-        print("Doing it absolute")
         relative = False
-    else:
-        print("Doing it relative")
+
     return self_link, relative
 
 

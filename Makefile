@@ -46,9 +46,18 @@ index-stac-api:
 	docker-compose exec dc-index \
 		python /code/odc_index/stac_api_to_dc.py \
 		--bbox='-20,30,20,40' \
+		--limit=2 \
 		--collections='sentinel-s2-l2a-cogs' \
 		--datetime='2020-08-01/2020-08-31' \
 		s2_l2a
+
+test-load-s2:
+	docker-compose exec dc-index \
+		python -c "\
+import datacube;\
+dc = datacube.Datacube(); \
+ds = dc.find_datasets(product='s2_l2a', limit=1); \
+dc.load(product='s2_l2a',id=ds[0].id,output_crs='EPSG:4326',resolution=(0.1,0.1))"
 
 index-stac-api-au:
 	docker-compose exec \
