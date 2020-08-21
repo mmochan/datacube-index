@@ -3,11 +3,9 @@
 """
 import json
 import logging
-import sys
-from typing import Tuple
 import os
-
-from typing import Generator, List
+import sys
+from typing import Any, Dict, Generator, Iterable, List, Tuple
 
 import click
 from datacube import Datacube
@@ -17,7 +15,7 @@ from odc.index.stac import stac_transform, stac_transform_absolute
 from satsearch import Search
 
 
-def guess_location(metadata: dict) -> [str, bool]:
+def guess_location(metadata: dict) -> Tuple[str, bool]:
     self_link = None
     asset_link = None
     relative = True
@@ -59,10 +57,8 @@ def get_items(
 
 
 def transform_items(
-    dc: Datacube, items: List[Tuple[dict, str, bool]]
+    doc2ds: Doc2Dataset, items: Iterable[Tuple[Dict[str, Any], str, bool]]
 ) -> Generator[Tuple[dict, str], None, None]:
-    doc2ds = Doc2Dataset(dc.index)
-
     for metadata, uri, relative in items:
         try:
             if relative:
@@ -113,7 +109,6 @@ def stac_api_to_odc(
     config: dict,
     **kwargs,
 ) -> Tuple[int, int]:
-
     # QA the search terms
     if config["bbox"]:
         bbox = list(map(float, config["bbox"].split(",")))
@@ -139,11 +134,14 @@ def stac_api_to_odc(
         logging.warning("Didn't find any items, finishing.")
         return 0, 0
 
-    # Get a generator of (uri, stac) tuples
+    # Get a generator of (stac, uri, relative_uri) tuples
     potential_items = get_items(srch, limit)
 
-    datasets = transform_items(dc, potential_items)
+    # Get a generator of (dataset, uri)
+    doc2ds = Doc2Dataset(dc.index, **kwargs)
+    datasets = transform_items(doc2ds, potential_items)
 
+    # Do the indexing of all the things
     return index_update_datasets(dc, datasets, update, allow_unsafe)
 
 
