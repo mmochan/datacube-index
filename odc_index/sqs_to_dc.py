@@ -122,7 +122,10 @@ def get_metadata_uri(metadata, transform, odc_metadata_link):
         uri = get_uri(metadata, "self")
 
     if transform:
-        metadata = transform(metadata)
+        try:
+            metadata = transform(metadata)
+        except KeyError as err:
+            raise SQStoDCException(f"Failed to transform metadata with error -  {err}")
 
     return metadata, uri
 
@@ -148,7 +151,12 @@ def do_indexing(
     metadata, uri, dc: Datacube, doc2ds: Doc2Dataset, update=False, allow_unsafe=False
 ):
     if uri is not None:
-        ds, err = doc2ds(metadata, uri)
+        try:
+            ds, err = doc2ds(metadata, uri)
+        except ValueError as e:
+            raise SQStoDCException(
+                f"Exception thrown when trying to create dataset: '{e}'\n The URI was {uri}"
+            )
         if ds is not None:
             if update:
                 updates = {}
@@ -158,7 +166,9 @@ def do_indexing(
             else:
                 dc.index.datasets.add(ds)
         else:
-            raise SQStoDCException(f"Error parsing dataset {uri} with error {err}")
+            raise SQStoDCException(
+                f"Failed to create dataset with error {err}\n The URI was {uri}"
+            )
     else:
         raise SQStoDCException("Failed to get URI from metadata doc")
 
