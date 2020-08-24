@@ -66,18 +66,24 @@ def transform_items(
             else:
                 metadata = stac_transform_absolute(metadata)
         except KeyError as e:
-            logging.error(f"Failed to handle item with KeyError: '{e}'\n The URI was {uri}")
+            logging.error(
+                f"Failed to handle item with KeyError: '{e}'\n The URI was {uri}"
+            )
             yield None, uri
             continue
 
         try:
             ds, err = doc2ds(metadata, uri)
         except ValueError as e:
-            logging.error(f"Exception thrown when trying to create dataset: '{e}'\n The URI was {uri}")
+            logging.error(
+                f"Exception thrown when trying to create dataset: '{e}'\n The URI was {uri}"
+            )
         if ds is not None:
             yield ds, uri
         else:
-            logging.error(f"Failed to create dataset with error {err}\n The URI was {uri}")
+            logging.error(
+                f"Failed to create dataset with error {err}\n The URI was {uri}"
+            )
             yield None, uri
 
 
