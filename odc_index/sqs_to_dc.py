@@ -20,6 +20,23 @@ from odc.index.stac import stac_transform
 logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler()])
 
 
+def get_messages(queue, limit, cnt=0):
+    messages = queue.receive_messages(
+        VisibilityTimeout=60,
+        MaxNumberOfMessages=1,
+        WaitTimeSeconds=10,
+        MessageAttributeNames=["All"],
+    )
+
+    if len(messages) > 0 and (not limit or cnt < limit):
+        for message in messages:
+            yield message
+
+        yield from get_messages(queue, limit, cnt + 1)
+    else:
+        print("No more messages...")
+
+
 def queue_to_odc(
     queue,
     dc: Datacube,
@@ -36,42 +53,28 @@ def queue_to_odc(
     ds_success = 0
     ds_failed = 0
 
-    queue_empty = False
-
     doc2ds = Doc2Dataset(dc.index, **kwargs)
 
-    while not queue_empty and (not limit or ds_success + ds_failed < limit):
+    messages = get_messages(queue, limit)
+    for message in messages:
         try:
-            messages = queue.receive_messages(
-                VisibilityTimeout=60,
-                MaxNumberOfMessages=1,
-                WaitTimeSeconds=10,
-                MessageAttributeNames=["All"],
-            )
-
-            if len(messages) > 0:
-                for message in messages:
-                    # Extract metadata from message
-                    metadata = extract_metadata_from_message(message)
-                    if archive:
-                        # Archive metadata
-                        do_archiving(metadata, dc)
-                    else:
-                        # Extract metadata and URI for indexing
-                        metadata, uri = get_metadata_uri(
-                            metadata, transform, odc_metadata_link
-                        )
-                        # Index metadata
-                        do_indexing(metadata, uri, dc, doc2ds, update, allow_unsafe)
-                    ds_success += 1
-                    # Success, so delete the message.
-                    message.delete()
+            # Extract metadata from message
+            metadata = extract_metadata_from_message(message)
+            if archive:
+                # Archive metadata
+                do_archiving(metadata, dc)
             else:
-                logging.info("No more messages...")
-                queue_empty = True
+                # Extract metadata and URI for indexing
+                metadata, uri = get_metadata_uri(metadata, transform, odc_metadata_link)
+                # Index metadata
+                do_indexing(metadata, uri, dc, doc2ds, update, allow_unsafe)
+            ds_success += 1
+            # Success, so delete the message.
+            message.delete()
         except SQStoDCException as err:
             logging.error(err)
             ds_failed += 1
+
     return ds_success, ds_failed
 
 
@@ -144,7 +147,6 @@ def do_archiving(metadata, dc: Datacube):
 def do_indexing(
     metadata, uri, dc: Datacube, doc2ds: Doc2Dataset, update=False, allow_unsafe=False
 ):
-
     if uri is not None:
         ds, err = doc2ds(metadata, uri)
         if ds is not None:

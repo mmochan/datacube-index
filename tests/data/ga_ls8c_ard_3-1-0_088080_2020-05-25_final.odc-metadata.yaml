@@ -25,7 +25,7 @@ grids:
   default:
     shape: [7841, 7781]
     transform: [30.0, 0.0, 526785.0, 0.0, -30.0, -3077085.0, 0.0, 0.0, 1.0]
-  panchromatic:
+  g15m:
     shape: [15681, 15561]
     transform: [15.0, 0.0, 526792.5, 0.0, -15.0, -3077092.5, 0.0, 0.0, 1.0]
 
@@ -88,7 +88,7 @@ measurements:
     path: ga_ls8c_nbart_3-1-0_088080_2020-05-25_final_band05.tif
   nbart_panchromatic:
     path: ga_ls8c_nbart_3-1-0_088080_2020-05-25_final_band08.tif
-    grid: panchromatic
+    grid: g15m
   nbart_red:
     path: ga_ls8c_nbart_3-1-0_088080_2020-05-25_final_band04.tif
   nbart_swir_1:
