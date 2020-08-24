@@ -41,3 +41,29 @@ product-s2-nbar:
 index-s2-nbar-test:
 	docker-compose exec dc-index \
 		/code/index-sentinel-2.py --start-date 2020-06-01 --end-date 2020-07-01 "ga_s2a_ard_nbar_granule ga_s2b_ard_nbar_granule"
+
+index-stac-api:
+	docker-compose exec dc-index \
+		python /code/odc_index/stac_api_to_dc.py \
+		--bbox='-20,30,20,40' \
+		--limit=1000 \
+		--collections='sentinel-s2-l2a-cogs' \
+		--datetime='2020-08-01/2020-08-31' \
+		s2_l2a
+
+test-load-s2:
+	docker-compose exec dc-index \
+		python -c "\
+import datacube;\
+dc = datacube.Datacube(); \
+ds = dc.find_datasets(product='s2_l2a', limit=1); \
+dc.load(product='s2_l2a',id=ds[0].id,output_crs='EPSG:4326',resolution=(0.1,0.1))"
+
+index-stac-api-au:
+	docker-compose exec \
+		--env STAC_API_URL=https://explorer.sandbox.dea.ga.gov.au/stac/ \
+		dc-index \
+		python /code/odc_index/stac_api_to_dc.py \
+		--limit=10 \
+		s2_l2a
+	
