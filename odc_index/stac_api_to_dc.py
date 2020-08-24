@@ -67,7 +67,7 @@ def transform_items(
                 metadata = stac_transform_absolute(metadata)
         except KeyError as e:
             logging.error(f"Failed to handle item with KeyError: '{e}'\n The URI was {uri}")
-            yield None, None
+            yield None, uri
             continue
 
         try:
@@ -78,7 +78,7 @@ def transform_items(
             yield ds, uri
         else:
             logging.error(f"Failed to create dataset with error {err}\n The URI was {uri}")
-            yield None, None
+            yield None, uri
 
 
 def index_update_datasets(
