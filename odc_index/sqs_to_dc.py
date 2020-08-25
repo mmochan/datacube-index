@@ -15,6 +15,7 @@ from datacube.index.hl import Doc2Dataset
 from datacube.utils import changes, documents
 from odc.index.stac import stac_transform
 from pathlib import PurePath
+from yaml import load
 
 # Added log handler
 logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler()])
@@ -41,12 +42,12 @@ def queue_to_odc(
     queue,
     dc: Datacube,
     products: list,
+    prefix=None,
     transform=None,
     limit=None,
     update=False,
     archive=False,
     allow_unsafe=False,
-    prefix,
     odc_metadata_link=False,
     **kwargs,
 ) -> Tuple[int, int]:
@@ -144,6 +145,7 @@ def get_metadata_s3_object(s3_message, prefix):
         key = record["s3"]["object"]["key"]
         if prefix is None or len(prefix) == 0 or any([PurePath(key).match(p) for p in prefix]):
             try:
+                s3 = boto3.resource('s3')
                 obj = s3.Object(bucket_name, key).get(
                     ResponseCacheControl='no-cache')
                 data = load(obj['Body'].read())
@@ -273,10 +275,11 @@ class SQStoDCException(Exception):
     default=False,
     help="Allow unsafe changes to a dataset. Take care!",
 )
-@click.option("--prefix",
-              default=None,
-              multiple=True,
-              help="filtering option for which products to pay attention to")
+@click.option(
+    "--prefix",
+    default=None,
+    help="filtering option for which products to pay attention to"
+)
 @click.argument("queue_name", type=str, nargs=1)
 @click.argument("product", type=str, nargs=1)
 def cli(
