@@ -136,7 +136,10 @@ def get_metadata_uri(metadata, transform, odc_metadata_link):
     return metadata, uri
 
 
-def get_metadata_s3_object(s3_message, prefix):
+def get_metadata_s3_object(s3_message, prefix) -> Tuple[dict, str]:
+    data = None
+    uri = None
+
     if "Records" not in s3_message:
         raise SQStoDCException("Message did not contain S3 records")
 
@@ -148,7 +151,9 @@ def get_metadata_s3_object(s3_message, prefix):
                 s3 = boto3.resource('s3')
                 obj = s3.Object(bucket_name, key).get(
                     ResponseCacheControl='no-cache')
+
                 data = load(obj['Body'].read())
+
                 # NRT data may not have a creation_dt, attempt insert if missing
                 if "creation_dt" not in data:
                     try:
@@ -157,7 +162,7 @@ def get_metadata_s3_object(s3_message, prefix):
                         pass
                 uri = get_s3_url(bucket_name, key)
             except Exception as e:
-                raise SQStoDCException(e)
+                raise SQStoDCException(f"Exception thrown when trying to load s3 object: '{e}'\n")
 
     return data, uri
 
@@ -184,7 +189,7 @@ def do_archiving(metadata, dc: Datacube):
 
 
 def do_indexing(
-    metadata, uri, dc: Datacube, doc2ds: Doc2Dataset, update=False, allow_unsafe=False
+    metadata: dict, uri, dc: Datacube, doc2ds: Doc2Dataset, update=False, allow_unsafe=False
 ):
     if uri is not None:
         try:
@@ -278,6 +283,7 @@ class SQStoDCException(Exception):
 @click.option(
     "--prefix",
     default=None,
+    multiple=True,
     help="filtering option for which products to pay attention to"
 )
 @click.argument("queue_name", type=str, nargs=1)
