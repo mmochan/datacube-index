@@ -68,7 +68,9 @@ def queue_to_odc(
             else:
                 if not prefix:
                     # Extract metadata and URI for indexing
-                    metadata, uri = get_metadata_uri(metadata, transform, odc_metadata_link)
+                    metadata, uri = get_metadata_uri(
+                        metadata, transform, odc_metadata_link
+                    )
                 else:
                     metadata, uri = get_metadata_s3_object(metadata, prefix)
 
@@ -146,13 +148,16 @@ def get_metadata_s3_object(s3_message, prefix) -> Tuple[dict, str]:
     for record in s3_message["Records"]:
         bucket_name = record["s3"]["bucket"]["name"]
         key = record["s3"]["object"]["key"]
-        if prefix is None or len(prefix) == 0 or any([PurePath(key).match(p) for p in prefix]):
+        if (
+            prefix is None
+            or len(prefix) == 0
+            or any([PurePath(key).match(p) for p in prefix])
+        ):
             try:
-                s3 = boto3.resource('s3')
-                obj = s3.Object(bucket_name, key).get(
-                    ResponseCacheControl='no-cache')
+                s3 = boto3.resource("s3")
+                obj = s3.Object(bucket_name, key).get(ResponseCacheControl="no-cache")
 
-                data = load(obj['Body'].read())
+                data = load(obj["Body"].read())
 
                 # NRT data may not have a creation_dt, attempt insert if missing
                 if "creation_dt" not in data:
@@ -162,13 +167,17 @@ def get_metadata_s3_object(s3_message, prefix) -> Tuple[dict, str]:
                         pass
                 uri = get_s3_url(bucket_name, key)
             except Exception as e:
-                raise SQStoDCException(f"Exception thrown when trying to load s3 object: '{e}'\n")
+                raise SQStoDCException(
+                    f"Exception thrown when trying to load s3 object: '{e}'\n"
+                )
 
     return data, uri
 
+
 def get_s3_url(bucket_name, obj_key):
-    return 'http://{bucket_name}.s3.amazonaws.com/{obj_key}'.format(
-        bucket_name=bucket_name, obj_key=obj_key)
+    return "http://{bucket_name}.s3.amazonaws.com/{obj_key}".format(
+        bucket_name=bucket_name, obj_key=obj_key
+    )
 
 
 def get_uri(metadata, rel_value):
@@ -189,7 +198,12 @@ def do_archiving(metadata, dc: Datacube):
 
 
 def do_indexing(
-    metadata: dict, uri, dc: Datacube, doc2ds: Doc2Dataset, update=False, allow_unsafe=False
+    metadata: dict,
+    uri,
+    dc: Datacube,
+    doc2ds: Doc2Dataset,
+    update=False,
+    allow_unsafe=False,
 ):
     if uri is not None:
         try:
@@ -284,7 +298,7 @@ class SQStoDCException(Exception):
     "--prefix",
     default=None,
     multiple=True,
-    help="filtering option for which products to pay attention to"
+    help="filtering option for which products to pay attention to",
 )
 @click.argument("queue_name", type=str, nargs=1)
 @click.argument("product", type=str, nargs=1)
