@@ -66,14 +66,25 @@ def transform_items(
             else:
                 metadata = stac_transform_absolute(metadata)
         except KeyError as e:
-            logging.error(f"Failed to handle item at {uri} with error {e}")
-            yield None, None
-        ds, err = doc2ds(metadata, uri)
+            logging.error(
+                f"Failed to handle item with KeyError: '{e}'\n The URI was {uri}"
+            )
+            yield None, uri
+            continue
+
+        try:
+            ds, err = doc2ds(metadata, uri)
+        except ValueError as e:
+            logging.error(
+                f"Exception thrown when trying to create dataset: '{e}'\n The URI was {uri}"
+            )
         if ds is not None:
             yield ds, uri
         else:
-            logging.error(f"Failed to create dataset with error {err}")
-            yield None, None
+            logging.error(
+                f"Failed to create dataset with error {err}\n The URI was {uri}"
+            )
+            yield None, uri
 
 
 def index_update_datasets(
@@ -208,7 +219,7 @@ def cli(
         dc, candidate_products, limit, update, allow_unsafe, config
     )
 
-    print(f"Added {added} Datasets, Failed {failed} Datasets")
+    print(f"Added {added} Datasets, failed {failed} Datasets")
 
 
 if __name__ == "__main__":
