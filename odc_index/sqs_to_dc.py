@@ -14,7 +14,7 @@ from datacube import Datacube
 from datacube.index.hl import Doc2Dataset
 from datacube.utils import changes, documents
 from odc.index.stac import stac_transform
-
+from pathlib import PurePath
 
 # Added log handler
 logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler()])
@@ -46,6 +46,7 @@ def queue_to_odc(
     update=False,
     archive=False,
     allow_unsafe=False,
+    prefix,
     odc_metadata_link=False,
     **kwargs,
 ) -> Tuple[int, int]:
@@ -64,8 +65,12 @@ def queue_to_odc(
                 # Archive metadata
                 do_archiving(metadata, dc)
             else:
-                # Extract metadata and URI for indexing
-                metadata, uri = get_metadata_uri(metadata, transform, odc_metadata_link)
+                if not prefix:
+                    # Extract metadata and URI for indexing
+                    metadata, uri = get_metadata_uri(metadata, transform, odc_metadata_link)
+                else:
+                    metadata, uri = get_metadata_s3_object(metadata, prefix)
+
                 # Index metadata
                 do_indexing(metadata, uri, dc, doc2ds, update, allow_unsafe)
             ds_success += 1
@@ -128,6 +133,35 @@ def get_metadata_uri(metadata, transform, odc_metadata_link):
             raise SQStoDCException(f"Failed to transform metadata with error -  {err}")
 
     return metadata, uri
+
+
+def get_metadata_s3_object(s3_message, prefix):
+    if "Records" not in s3_message:
+        raise SQStoDCException("Message did not contain S3 records")
+
+    for record in s3_message["Records"]:
+        bucket_name = record["s3"]["bucket"]["name"]
+        key = record["s3"]["object"]["key"]
+        if prefix is None or len(prefix) == 0 or any([PurePath(key).match(p) for p in prefix]):
+            try:
+                obj = s3.Object(bucket_name, key).get(
+                    ResponseCacheControl='no-cache')
+                data = load(obj['Body'].read())
+                # NRT data may not have a creation_dt, attempt insert if missing
+                if "creation_dt" not in data:
+                    try:
+                        data["creation_dt"] = data["extent"]["center_dt"]
+                    except KeyError:
+                        pass
+                uri = get_s3_url(bucket_name, key)
+            except Exception as e:
+                raise SQStoDCException(e)
+
+    return data, uri
+
+def get_s3_url(bucket_name, obj_key):
+    return 'http://{bucket_name}.s3.amazonaws.com/{obj_key}'.format(
+        bucket_name=bucket_name, obj_key=obj_key)
 
 
 def get_uri(metadata, rel_value):
@@ -239,6 +273,10 @@ class SQStoDCException(Exception):
     default=False,
     help="Allow unsafe changes to a dataset. Take care!",
 )
+@click.option("--prefix",
+              default=None,
+              multiple=True,
+              help="filtering option for which products to pay attention to")
 @click.argument("queue_name", type=str, nargs=1)
 @click.argument("product", type=str, nargs=1)
 def cli(
@@ -251,6 +289,7 @@ def cli(
     update,
     archive,
     allow_unsafe,
+    prefix,
     queue_name,
     product,
 ):
@@ -279,6 +318,7 @@ def cli(
         update=update,
         archive=archive,
         allow_unsafe=allow_unsafe,
+        prefix=prefix,
         odc_metadata_link=odc_metadata_link,
     )
 
