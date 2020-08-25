@@ -11,10 +11,11 @@ The functionality is exposed in form of various **<storage backend>-to-dc** util
 which accept URI/GLOB parameters and product name(s) to index into a default datacube.
 These utilities include:
 
-#. **bootstrap-odc.sh** : Shell script to consume URL based metadata and product catalogs and bootstrap a datacube.
-#. **s3-to-dc** : Index from S3 storage to a Datacube database.
-#. **thredds-to-dc** : Index from Thredds server to a Datacube database.
-#. **sqs-to-dc** : Index from SQS queue to a Datacube database.
+#. **bootstrap-odc.sh**: Shell script to consume URL based metadata and product catalogs and bootstrap a datacube.
+#. **s3-to-dc**: Index from S3 storage to a Datacube database.
+#. **thredds-to-dc**: Index from Thredds server to a Datacube database.
+#. **sqs-to-dc**: Index from SQS queue to a Datacube database.
+#. **stac-to-dc**: Index from a STAC API into a Dacube database.
 
 It has code to perform the follow steps:
 
