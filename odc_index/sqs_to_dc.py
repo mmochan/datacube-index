@@ -72,10 +72,7 @@ def queue_to_odc(
                         metadata, transform, odc_metadata_link
                     )
                 else:
-                    s3 = boto3.resource("s3")
-                    metadata, uri = get_metadata_from_s3_record(
-                        metadata, record_path, s3
-                    )
+                    metadata, uri = get_metadata_from_s3_record(metadata, record_path)
 
                 # Index metadata
                 do_indexing(metadata, uri, dc, doc2ds, update, allow_unsafe)
@@ -141,9 +138,7 @@ def get_metadata_uri(metadata, transform, odc_metadata_link):
     return metadata, uri
 
 
-def get_metadata_from_s3_record(
-    message: dict, record_path: tuple, s3=boto3.resource("s3")
-) -> Tuple[dict, str]:
+def get_metadata_from_s3_record(message: dict, record_path: tuple) -> Tuple[dict, str]:
     """[summary]
 
     Args:
@@ -170,6 +165,7 @@ def get_metadata_from_s3_record(
                     or any([PurePath(key).match(p) for p in record_path])
                 ):
                     try:
+                        s3 = boto3.resource("s3")
                         obj = s3.Object(bucket_name, key).get(
                             ResponseCacheControl="no-cache"
                         )
