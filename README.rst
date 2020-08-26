@@ -15,7 +15,7 @@ These utilities include:
 #. **s3-to-dc**: Index from S3 storage to a Datacube database.
 #. **thredds-to-dc**: Index from Thredds server to a Datacube database.
 #. **sqs-to-dc**: Index from SQS queue to a Datacube database.
-#. **stac-to-dc**: Index from a STAC API into a Dacube database.
+#. **stac-to-dc**: Index from a STAC API into a Datacube database.
 
 It has code to perform the follow steps:
 
