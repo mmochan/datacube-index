@@ -14,8 +14,8 @@ from deepdiff import DeepDiff
 
 from odc_index.sqs_to_dc import (
     get_metadata_uri,
-    get_metadata_s3_object,
-    extract_metadata_from_message,
+    get_metadata_from_s3_record,
+    get_s3_url,
 )
 
 # from odc.index.stac import stac_transform
@@ -24,18 +24,18 @@ TEST_DATA_FOLDER: Path = Path(__file__).parent.joinpath("data")
 LANDSAT_C3_SQS_MESSAGE: str = "ga_ls8c_ard_3-1-0_088080_2020-05-25_final.stac-item.json"
 LANDSAT_C3_ODC_YAML: str = "ga_ls8c_ard_3-1-0_088080_2020-05-25_final.odc-metadata.yaml"
 SENTINEL_2_NRT_MESSAGE: str = "sentinel-2-nrt_2020_08_21.json"
-SENTINEL_2_NRT_PREFIX = ("L2/sentinel-2-nrt/S2MSIARD/*/*/ARD-METADATA.yaml",)
+SENTINEL_2_NRT_RECORD_PATH = ("L2/sentinel-2-nrt/S2MSIARD/*/*/ARD-METADATA.yaml",)
 
 deep_diff = partial(
     DeepDiff, significant_digits=6, ignore_type_in_groups=[(tuple, list)]
 )
 
 
-def test_get_metadata_s3_object(sentinel_2_nrt_message, sentinel_2_nrt_prefix):
-    data, uri = get_metadata_s3_object(sentinel_2_nrt_message, sentinel_2_nrt_prefix)
+def test_get_metadata_s3_object(sentinel_2_nrt_message, sentinel_2_nrt_record_path):
+    data, uri = get_metadata_from_s3_record(sentinel_2_nrt_message, sentinel_2_nrt_record_path)
 
     assert type(data) is dict
-    assert uri == "http://{bucket_name}.s3.amazonaws.com/{obj_key}".format(
+    assert uri == get_s3_url(
         bucket_name="dea-public-data",
         obj_key="L2/sentinel-2-nrt/S2MSIARD/2020-08-21/S2B_OPER_MSI_ARD_TL_VGS1_20200821T014801_A018060_T54HVH_N02.09/ARD-METADATA.yaml",
     )
@@ -140,8 +140,8 @@ def ga_ls8c_ard_3_message():
 
 
 @pytest.fixture
-def sentinel_2_nrt_prefix():
-    return SENTINEL_2_NRT_PREFIX
+def sentinel_2_nrt_record_path():
+    return SENTINEL_2_NRT_RECORD_PATH
 
 
 @pytest.fixture

@@ -42,7 +42,7 @@ def queue_to_odc(
     queue,
     dc: Datacube,
     products: list,
-    prefix=None,
+    record_path=None,
     transform=None,
     limit=None,
     update=False,
@@ -66,13 +66,14 @@ def queue_to_odc(
                 # Archive metadata
                 do_archiving(metadata, dc)
             else:
-                if not prefix:
+                if not record_path:
                     # Extract metadata and URI for indexing
                     metadata, uri = get_metadata_uri(
                         metadata, transform, odc_metadata_link
                     )
                 else:
-                    metadata, uri = get_metadata_s3_object(metadata, prefix)
+                    s3 = boto3.resource("s3")
+                    metadata, uri = get_metadata_from_s3_record(metadata, record_path, s3)
 
                 # Index metadata
                 do_indexing(metadata, uri, dc, doc2ds, update, allow_unsafe)
@@ -138,38 +139,43 @@ def get_metadata_uri(metadata, transform, odc_metadata_link):
     return metadata, uri
 
 
-def get_metadata_s3_object(s3_message, prefix) -> Tuple[dict, str]:
+def get_metadata_from_s3_record(message: dict, record_path: tuple, s3 = boto3.resource("s3")) -> Tuple[dict, str]:
+    """[summary]
+
+    Args:
+        message (dict): [description]
+        record_path (tuple): [PATH for filtering s3 key path]
+
+    Raises:
+        SQStoDCException: [Catch s3 ]
+
+    Returns:
+        Tuple[dict, str]: [description]
+    """
     data = None
     uri = None
 
-    if "Records" not in s3_message:
-        raise SQStoDCException("Message did not contain S3 records")
-
-    for record in s3_message["Records"]:
-        bucket_name = record["s3"]["bucket"]["name"]
-        key = record["s3"]["object"]["key"]
-        if (
-            prefix is None
-            or len(prefix) == 0
-            or any([PurePath(key).match(p) for p in prefix])
-        ):
-            try:
-                s3 = boto3.resource("s3")
-                obj = s3.Object(bucket_name, key).get(ResponseCacheControl="no-cache")
-
-                data = load(obj["Body"].read())
-
-                # NRT data may not have a creation_dt, attempt insert if missing
-                if "creation_dt" not in data:
+    if message.get("Records"):
+        for record in message.get("Records"):
+            bucket_name = record.get("s3").get("bucket").get("name")
+            key = record.get("s3").get("object").get("key")
+            if bucket_name and key:
+                if (
+                    record_path is None
+                    or len(record_path) == 0
+                    or any([PurePath(key).match(p) for p in record_path])
+                ):
                     try:
-                        data["creation_dt"] = data["extent"]["center_dt"]
-                    except KeyError:
-                        pass
-                uri = get_s3_url(bucket_name, key)
-            except Exception as e:
-                raise SQStoDCException(
-                    f"Exception thrown when trying to load s3 object: '{e}'\n"
-                )
+                        obj = s3.Object(bucket_name, key).get(ResponseCacheControl="no-cache")
+                        data = load(obj["Body"].read())
+                        # NRT data may not have a creation_dt, attempt insert if missing
+                        if "creation_dt" not in data:
+                            data = dicttoolz.assoc(data, "creation_dt", data.get("extent").get("center_dt"))
+                        uri = get_s3_url(bucket_name, key)
+                    except Exception as e:
+                        raise SQStoDCException(
+                            f"Exception thrown when trying to load s3 object: '{e}'\n"
+                        )
 
     return data, uri
 
@@ -295,10 +301,10 @@ class SQStoDCException(Exception):
     help="Allow unsafe changes to a dataset. Take care!",
 )
 @click.option(
-    "--prefix",
+    "--record-path",
     default=None,
     multiple=True,
-    help="filtering option for which products to pay attention to",
+    help="filtering option for s3 path, i.e. 'L2/sentinel-2-nrt/S2MSIARD/*/*/ARD-METADATA.yaml'",
 )
 @click.argument("queue_name", type=str, nargs=1)
 @click.argument("product", type=str, nargs=1)
@@ -312,7 +318,7 @@ def cli(
     update,
     archive,
     allow_unsafe,
-    prefix,
+    record_path,
     queue_name,
     product,
 ):
@@ -341,7 +347,7 @@ def cli(
         update=update,
         archive=archive,
         allow_unsafe=allow_unsafe,
-        prefix=prefix,
+        record_path=record_path,
         odc_metadata_link=odc_metadata_link,
     )
 
