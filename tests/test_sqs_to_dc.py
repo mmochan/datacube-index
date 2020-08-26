@@ -32,7 +32,9 @@ deep_diff = partial(
 
 
 def test_get_metadata_s3_object(sentinel_2_nrt_message, sentinel_2_nrt_record_path):
-    data, uri = get_metadata_from_s3_record(sentinel_2_nrt_message, sentinel_2_nrt_record_path)
+    data, uri = get_metadata_from_s3_record(
+        sentinel_2_nrt_message, sentinel_2_nrt_record_path
+    )
 
     assert type(data) is dict
     assert uri == get_s3_url(
