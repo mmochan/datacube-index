@@ -156,8 +156,8 @@ def get_metadata_from_s3_record(message: dict, record_path: tuple) -> Tuple[dict
 
     if message.get("Records"):
         for record in message.get("Records"):
-            bucket_name = record.get("s3").get("bucket").get("name")
-            key = record.get("s3").get("object").get("key")
+            bucket_name = dicttoolz.get_in(['s3', 'bucket', 'name'], record)
+            key = dicttoolz.get_in(['s3', 'object', 'key'], record)
             if bucket_name and key:
                 if (
                     record_path is None
@@ -172,9 +172,11 @@ def get_metadata_from_s3_record(message: dict, record_path: tuple) -> Tuple[dict
                         data = load(obj["Body"].read())
                         # NRT data may not have a creation_dt, attempt insert if missing
                         if "creation_dt" not in data:
-                            data = dicttoolz.assoc(
-                                data, "creation_dt", data.get("extent").get("center_dt")
-                            )
+                            creation_dt = dicttoolz.get_in(["system_information", "time_processed"], data)
+                            if creation_dt:
+                                data = dicttoolz.assoc(
+                                    data, "creation_dt", creation_dt
+                                )
                         uri = get_s3_url(bucket_name, key)
                     except Exception as e:
                         raise SQStoDCException(
