@@ -37,7 +37,7 @@ Indexing dataset from sqs message where the message body contains metadata.
 
 Archive
 """""""
-Archive dataset from sqs message where the message body contains metadata :coded:`id`.
+Archive dataset from sqs message where the message body contains metadata :code:`id`.
 :code:`sqs-to-dc queue_name product --archive`
 
 s3 sns message
