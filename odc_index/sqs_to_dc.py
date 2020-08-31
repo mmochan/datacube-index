@@ -298,7 +298,10 @@ class SQStoDCException(Exception):
     help="If set, update instead of add datasets",
 )
 @click.option(
-    "--archive", is_flag=True, default=False, help="If set, archive datasets",
+    "--archive",
+    is_flag=True,
+    default=False,
+    help="If set, archive datasets",
 )
 @click.option(
     "--allow-unsafe",

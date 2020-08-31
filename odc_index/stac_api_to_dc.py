@@ -190,9 +190,15 @@ def stac_api_to_odc(
 )
 @click.argument("product", type=str, nargs=1)
 def cli(
-    limit, update, allow_unsafe, collections, bbox, datetime, product,
+    limit,
+    update,
+    allow_unsafe,
+    collections,
+    bbox,
+    datetime,
+    product,
 ):
-    """ 
+    """
     Iterate through STAC items from a STAC API and add them to datacube
     Note that you need to set the STAC_API_URL environment variable to
     something like https://earth-search.aws.element84.com/v0/
