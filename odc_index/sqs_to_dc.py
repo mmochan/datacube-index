@@ -170,13 +170,6 @@ def get_metadata_from_s3_record(message: dict, record_path: tuple) -> Tuple[dict
                             ResponseCacheControl="no-cache"
                         )
                         data = load(obj["Body"].read())
-                        # NRT data may not have a creation_dt, attempt insert if missing
-                        if "creation_dt" not in data:
-                            creation_dt = dicttoolz.get_in(
-                                ["system_information", "time_processed"], data
-                            )
-                            if creation_dt:
-                                data = dicttoolz.assoc(data, "creation_dt", creation_dt)
                         uri = get_s3_url(bucket_name, key)
                     except Exception as e:
                         raise SQStoDCException(
