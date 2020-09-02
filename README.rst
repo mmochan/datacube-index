@@ -27,33 +27,6 @@ It has code to perform the follow steps:
    of `dc-index-from-tar <https://github.com/opendatacube/odc-tools/blob/master/apps/dc_tools/odc/apps/dc_tools/index_from_tar.py>`_
    while skipping the tar file.
 
-sqs-to-dc
----------
-
-sqs metadata messsage
-^^^^^^^^^^^^^^^^^^^^^
-Indexing dataset from sqs message where the message body contains metadata.
-:code:`sqs-to-dc queue_name product`
-
-Archive
-"""""""
-Archive dataset from sqs message where the message body contains metadata :code:`id`.
-:code:`sqs-to-dc queue_name product --archive`
-
-s3 sns message
-^^^^^^^^^^^^^^
-
-:code:`sqs-to-dc` supports indexing metadata s3 event notifications. It consumes s3 event message from SQS queue, https://docs.aws.amazon.com/AmazonS3/latest/dev/notification-content-structure.html.
-
-To use this feature,
-:code:`sqs-to-dc queue_name product --record-path patha --record-path pathb`
-
-The sqs message :code:`"key":"object-key",` the :code:`key` is filtered by :code:`--record-path`.
-
-Archive
-"""""""
-This is not implemented, as metadata :code:`id` is within the s3 object. When the s3 object is deleted, this will fail.
-
 
 Usage in Production
 -------------------
