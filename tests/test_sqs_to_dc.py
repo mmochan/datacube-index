@@ -12,24 +12,44 @@ from pathlib import Path
 from datacube.utils import documents
 from deepdiff import DeepDiff
 
-from odc_index.sqs_to_dc import get_metadata_uri
+from odc_index.sqs_to_dc import (
+    get_metadata_uri,
+    get_metadata_from_s3_record,
+    get_s3_url,
+)
 
 # from odc.index.stac import stac_transform
 
 TEST_DATA_FOLDER: Path = Path(__file__).parent.joinpath("data")
 LANDSAT_C3_SQS_MESSAGE: str = "ga_ls8c_ard_3-1-0_088080_2020-05-25_final.stac-item.json"
 LANDSAT_C3_ODC_YAML: str = "ga_ls8c_ard_3-1-0_088080_2020-05-25_final.odc-metadata.yaml"
+SENTINEL_2_NRT_MESSAGE: str = "sentinel-2-nrt_2020_08_21.json"
+SENTINEL_2_NRT_RECORD_PATH = ("L2/sentinel-2-nrt/S2MSIARD/*/*/ARD-METADATA.yaml",)
 
 deep_diff = partial(
     DeepDiff, significant_digits=6, ignore_type_in_groups=[(tuple, list)]
 )
 
 
-def test_sqs_to_dc(ga_ls8c_ard_3_message, ga_ls8c_ard_3_yaml):
+def test_get_metadata_s3_object(sentinel_2_nrt_message, sentinel_2_nrt_record_path):
+    data, uri = get_metadata_from_s3_record(
+        sentinel_2_nrt_message, sentinel_2_nrt_record_path
+    )
+
+    assert type(data) is dict
+    assert "creation_dt" in data
+    assert uri == get_s3_url(
+        bucket_name="dea-public-data",
+        obj_key="L2/sentinel-2-nrt/S2MSIARD/2020-08-21/S2B_OPER_MSI_ARD_TL_VGS1_20200821T014801_A018060_T54HVH_N02.09/ARD-METADATA.yaml",
+    )
+
+
+def test_get_metadata_uri(ga_ls8c_ard_3_message, ga_ls8c_ard_3_yaml):
     actual_doc, uri = get_metadata_uri(
         ga_ls8c_ard_3_message, None, "STAC-LINKS-REL:odc_yaml"
     )
 
+    assert type(actual_doc) is dict
     assert ga_ls8c_ard_3_yaml["id"] == actual_doc["id"]
     assert ga_ls8c_ard_3_yaml["crs"] == actual_doc["crs"]
     assert ga_ls8c_ard_3_yaml["product"]["name"] == actual_doc["product"]["name"]
@@ -117,6 +137,19 @@ def test_odc_metadata_link(ga_ls8c_ard_3_message):
 @pytest.fixture
 def ga_ls8c_ard_3_message():
     with TEST_DATA_FOLDER.joinpath(LANDSAT_C3_SQS_MESSAGE).open("r") as f:
+        body = json.load(f)
+    metadata = json.loads(body["Message"])
+    return metadata
+
+
+@pytest.fixture
+def sentinel_2_nrt_record_path():
+    return SENTINEL_2_NRT_RECORD_PATH
+
+
+@pytest.fixture
+def sentinel_2_nrt_message():
+    with TEST_DATA_FOLDER.joinpath(SENTINEL_2_NRT_MESSAGE).open("r") as f:
         body = json.load(f)
     metadata = json.loads(body["Message"])
     return metadata

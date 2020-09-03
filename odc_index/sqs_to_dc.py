@@ -14,7 +14,8 @@ from datacube import Datacube
 from datacube.index.hl import Doc2Dataset
 from datacube.utils import changes, documents
 from odc.index.stac import stac_transform
-
+from pathlib import PurePath
+from yaml import load
 
 # Added log handler
 logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler()])
@@ -41,6 +42,7 @@ def queue_to_odc(
     queue,
     dc: Datacube,
     products: list,
+    record_path=None,
     transform=None,
     limit=None,
     update=False,
@@ -64,8 +66,14 @@ def queue_to_odc(
                 # Archive metadata
                 do_archiving(metadata, dc)
             else:
-                # Extract metadata and URI for indexing
-                metadata, uri = get_metadata_uri(metadata, transform, odc_metadata_link)
+                if not record_path:
+                    # Extract metadata and URI for indexing
+                    metadata, uri = get_metadata_uri(
+                        metadata, transform, odc_metadata_link
+                    )
+                else:
+                    metadata, uri = get_metadata_from_s3_record(metadata, record_path)
+
                 # Index metadata
                 do_indexing(metadata, uri, dc, doc2ds, update, allow_unsafe)
             ds_success += 1
@@ -130,6 +138,53 @@ def get_metadata_uri(metadata, transform, odc_metadata_link):
     return metadata, uri
 
 
+def get_metadata_from_s3_record(message: dict, record_path: tuple) -> Tuple[dict, str]:
+    """[summary]
+
+    Args:
+        message (dict): [description]
+        record_path (tuple): [PATH for filtering s3 key path]
+
+    Raises:
+        SQStoDCException: [Catch s3 ]
+
+    Returns:
+        Tuple[dict, str]: [description]
+    """
+    data = None
+    uri = None
+
+    if message.get("Records"):
+        for record in message.get("Records"):
+            bucket_name = dicttoolz.get_in(["s3", "bucket", "name"], record)
+            key = dicttoolz.get_in(["s3", "object", "key"], record)
+            if bucket_name and key:
+                if (
+                    record_path is None
+                    or len(record_path) == 0
+                    or any([PurePath(key).match(p) for p in record_path])
+                ):
+                    try:
+                        s3 = boto3.resource("s3")
+                        obj = s3.Object(bucket_name, key).get(
+                            ResponseCacheControl="no-cache"
+                        )
+                        data = load(obj["Body"].read())
+                        uri = get_s3_url(bucket_name, key)
+                    except Exception as e:
+                        raise SQStoDCException(
+                            f"Exception thrown when trying to load s3 object: '{e}'\n"
+                        )
+
+    return data, uri
+
+
+def get_s3_url(bucket_name, obj_key):
+    return "http://{bucket_name}.s3.amazonaws.com/{obj_key}".format(
+        bucket_name=bucket_name, obj_key=obj_key
+    )
+
+
 def get_uri(metadata, rel_value):
     uri = None
     for link in metadata.get("links"):
@@ -148,7 +203,12 @@ def do_archiving(metadata, dc: Datacube):
 
 
 def do_indexing(
-    metadata, uri, dc: Datacube, doc2ds: Doc2Dataset, update=False, allow_unsafe=False
+    metadata: dict,
+    uri,
+    dc: Datacube,
+    doc2ds: Doc2Dataset,
+    update=False,
+    allow_unsafe=False,
 ):
     if uri is not None:
         try:
@@ -231,13 +291,22 @@ class SQStoDCException(Exception):
     help="If set, update instead of add datasets",
 )
 @click.option(
-    "--archive", is_flag=True, default=False, help="If set, archive datasets",
+    "--archive",
+    is_flag=True,
+    default=False,
+    help="If set, archive datasets",
 )
 @click.option(
     "--allow-unsafe",
     is_flag=True,
     default=False,
     help="Allow unsafe changes to a dataset. Take care!",
+)
+@click.option(
+    "--record-path",
+    default=None,
+    multiple=True,
+    help="filtering option for s3 path, i.e. 'L2/sentinel-2-nrt/S2MSIARD/*/*/ARD-METADATA.yaml'",
 )
 @click.argument("queue_name", type=str, nargs=1)
 @click.argument("product", type=str, nargs=1)
@@ -251,6 +320,7 @@ def cli(
     update,
     archive,
     allow_unsafe,
+    record_path,
     queue_name,
     product,
 ):
@@ -279,6 +349,7 @@ def cli(
         update=update,
         archive=archive,
         allow_unsafe=allow_unsafe,
+        record_path=record_path,
         odc_metadata_link=odc_metadata_link,
     )
 

@@ -14,7 +14,9 @@ setuptools.setup(
     url="https://github.com/opendatacube/datacube-index",
     packages=setuptools.find_packages(),
     include_package_data=True,
-    install_requires=["Click",],
+    install_requires=[
+        "Click",
+    ],
     entry_points="""
         [console_scripts]
         s3-to-dc=odc_index.s3_to_dc:cli

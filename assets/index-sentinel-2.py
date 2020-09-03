@@ -7,10 +7,12 @@ import subprocess
 
 @click.command("index-sentinel-2")
 @click.option(
-    "--start-date", help="Start date in the format yyyy-mm-dd. Inclusive.",
+    "--start-date",
+    help="Start date in the format yyyy-mm-dd. Inclusive.",
 )
 @click.option(
-    "--end-date", help="End date in the format yyyy-mm-dd. Exclusive.",
+    "--end-date",
+    help="End date in the format yyyy-mm-dd. Exclusive.",
 )
 @click.argument("product", type=str, nargs=1)
 def cli(start_date, end_date, product):
