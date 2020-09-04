@@ -11,7 +11,7 @@ from pathlib import Path
 
 from datacube.utils import documents
 from deepdiff import DeepDiff
-
+from datetime import date
 from odc_index.sqs_to_dc import (
     get_metadata_uri,
     get_metadata_from_s3_record,
@@ -30,14 +30,13 @@ deep_diff = partial(
     DeepDiff, significant_digits=6, ignore_type_in_groups=[(tuple, list)]
 )
 
-
+@pytest.mark.skipif(date.today() > date(2020, 11, 10), reason='dataset has been rotated out')
 def test_get_metadata_s3_object(sentinel_2_nrt_message, sentinel_2_nrt_record_path):
     data, uri = get_metadata_from_s3_record(
         sentinel_2_nrt_message, sentinel_2_nrt_record_path
     )
 
     assert type(data) is dict
-    assert "creation_dt" in data
     assert uri == get_s3_url(
         bucket_name="dea-public-data",
         obj_key="L2/sentinel-2-nrt/S2MSIARD/2020-08-21/S2B_OPER_MSI_ARD_TL_VGS1_20200821T014801_A018060_T54HVH_N02.09/ARD-METADATA.yaml",
