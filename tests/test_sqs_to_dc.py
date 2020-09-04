@@ -30,7 +30,10 @@ deep_diff = partial(
     DeepDiff, significant_digits=6, ignore_type_in_groups=[(tuple, list)]
 )
 
-@pytest.mark.skipif(date.today() > date(2020, 11, 10), reason='dataset has been rotated out')
+
+@pytest.mark.skipif(
+    date.today() > date(2020, 11, 10), reason="dataset has been rotated out"
+)
 def test_get_metadata_s3_object(sentinel_2_nrt_message, sentinel_2_nrt_record_path):
     data, uri = get_metadata_from_s3_record(
         sentinel_2_nrt_message, sentinel_2_nrt_record_path
