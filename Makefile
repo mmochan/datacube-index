@@ -9,9 +9,18 @@ up:
 clean:
 	docker-compose ${DEV_DOCKERFILES} down
 
+test:
+	docker-compose ${DEV_DOCKERFILES} exec dc-index \
+		bash -c "\
+		pip install pytest;\
+		pytest\
+		"
+
 init:
 	docker-compose exec dc-index \
 		datacube system init --no-init-users
+
+
 
 shell:
 	docker-compose exec dc-index \

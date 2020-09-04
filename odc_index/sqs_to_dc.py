@@ -21,21 +21,22 @@ from yaml import load
 logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler()])
 
 
-def get_messages(queue, limit, cnt=0):
-    messages = queue.receive_messages(
-        VisibilityTimeout=60,
-        MaxNumberOfMessages=1,
-        WaitTimeSeconds=10,
-        MessageAttributeNames=["All"],
-    )
+def get_messages(queue, limit):
+    count = 0
 
-    if len(messages) > 0 and (not limit or cnt < limit):
-        for message in messages:
-            yield message
-
-        yield from get_messages(queue, limit, cnt + 1)
-    else:
-        print("No more messages...")
+    while True:
+        messages = queue.receive_messages(
+            VisibilityTimeout=60,
+            MaxNumberOfMessages=1,
+            WaitTimeSeconds=10,
+            MessageAttributeNames=["All"],
+        )
+        if len(messages) == 0 or count > limit:
+            break
+        else:
+            for message in messages:
+                count += 1
+                yield message
 
 
 def queue_to_odc(
