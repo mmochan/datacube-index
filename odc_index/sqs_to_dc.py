@@ -57,7 +57,7 @@ def queue_to_odc(
     ds_success = 0
     ds_failed = 0
 
-    doc2ds = Doc2Dataset(dc.index, **kwargs)
+    doc2ds = Doc2Dataset(dc.index, products=products, **kwargs)
 
     messages = get_messages(queue, limit)
     for message in messages:
