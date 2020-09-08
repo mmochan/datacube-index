@@ -31,7 +31,8 @@ def get_messages(queue, limit):
             WaitTimeSeconds=10,
             MessageAttributeNames=["All"],
         )
-        if len(messages) == 0 or count > limit:
+
+        if len(messages) == 0 or (limit and count > limit):
             break
         else:
             for message in messages:
