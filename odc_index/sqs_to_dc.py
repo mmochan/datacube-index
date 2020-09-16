@@ -16,9 +16,18 @@ from datacube.utils import changes, documents
 from odc.index.stac import stac_transform
 from pathlib import PurePath
 from yaml import load
+import pandas as pd
 
 # Added log handler
 logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler()])
+
+
+class SQStoDCException(Exception):
+    """
+    Exception to raise for error during SQS to DC indexing/archiving
+    """
+
+    pass
 
 
 def get_messages(queue, limit):
@@ -32,60 +41,12 @@ def get_messages(queue, limit):
             MessageAttributeNames=["All"],
         )
 
-        if len(messages) == 0 or (limit and count > limit):
+        if len(messages) == 0 or (limit and count >= limit):
             break
         else:
             for message in messages:
                 count += 1
                 yield message
-
-
-def queue_to_odc(
-    queue,
-    dc: Datacube,
-    products: list,
-    record_path=None,
-    transform=None,
-    limit=None,
-    update=False,
-    archive=False,
-    allow_unsafe=False,
-    odc_metadata_link=False,
-    **kwargs,
-) -> Tuple[int, int]:
-
-    ds_success = 0
-    ds_failed = 0
-
-    doc2ds = Doc2Dataset(dc.index, products=products, **kwargs)
-
-    messages = get_messages(queue, limit)
-    for message in messages:
-        try:
-            # Extract metadata from message
-            metadata = extract_metadata_from_message(message)
-            if archive:
-                # Archive metadata
-                do_archiving(metadata, dc)
-            else:
-                if not record_path:
-                    # Extract metadata and URI for indexing
-                    metadata, uri = get_metadata_uri(
-                        metadata, transform, odc_metadata_link
-                    )
-                else:
-                    metadata, uri = get_metadata_from_s3_record(metadata, record_path)
-
-                # Index metadata
-                do_indexing(metadata, uri, dc, doc2ds, update, allow_unsafe)
-            ds_success += 1
-            # Success, so delete the message.
-            message.delete()
-        except SQStoDCException as err:
-            logging.error(err)
-            ds_failed += 1
-
-    return ds_success, ds_failed
 
 
 def extract_metadata_from_message(message):
@@ -135,7 +96,9 @@ def get_metadata_uri(metadata, transform, odc_metadata_link):
         try:
             metadata = transform(metadata)
         except KeyError as err:
-            raise SQStoDCException(f"Failed to transform metadata with error -  {err}")
+            raise SQStoDCException(
+                f"Failed to transform metadata from {uri} with error - {err}"
+            )
 
     return metadata, uri
 
@@ -226,6 +189,8 @@ def do_indexing(
                     updates = {tuple(): changes.allow_any}
                 dc.index.datasets.update(ds, updates_allowed=updates)
             else:
+                if dc.index.datasets.get(metadata.get("id")):
+                    raise SQStoDCException("Dataset already exists, not indexing")
                 dc.index.datasets.add(ds)
         else:
             raise SQStoDCException(
@@ -235,12 +200,73 @@ def do_indexing(
         raise SQStoDCException("Failed to get URI from metadata doc")
 
 
-class SQStoDCException(Exception):
-    """
-    Exception to raise for error during SQS to DC indexing/archiving
-    """
+def queue_to_odc(
+    queue,
+    dc: Datacube,
+    products: list,
+    record_path=None,
+    transform=None,
+    limit=None,
+    update=False,
+    archive=False,
+    allow_unsafe=False,
+    odc_metadata_link=False,
+    region_code_list_uri=None,
+    **kwargs,
+) -> Tuple[int, int]:
 
-    pass
+    ds_success = 0
+    ds_failed = 0
+
+    doc2ds = Doc2Dataset(dc.index, products=products, **kwargs)
+
+    region_codes = None
+    if region_code_list_uri:
+        region_codes = set(pd.read_csv(region_code_list_uri).values.ravel())
+        logging.info(f"Loaded a list of {len(region_codes)} region_codes ")
+
+    # This is a generator of messages
+    messages = get_messages(queue, limit)
+
+    for message in messages:
+        try:
+            # Extract metadata from message
+            metadata = extract_metadata_from_message(message)
+            if archive:
+                # Archive metadata
+                do_archiving(metadata, dc)
+            else:
+                if not record_path:
+                    # Extract metadata and URI for indexing
+                    metadata, uri = get_metadata_uri(
+                        metadata, transform, odc_metadata_link
+                    )
+                else:
+                    metadata, uri = get_metadata_from_s3_record(metadata, record_path)
+
+                # If we have a region_code filter, do it here
+                if region_code_list_uri:
+                    region_code = dicttoolz.get_in(
+                        ["properties", "odc:region_code"], metadata
+                    )
+                    if region_code not in region_codes:
+                        # We  don't want to keep this one, so delete the message
+                        message.delete()
+                        # And fail it...
+                        raise SQStoDCException(
+                            f"Region code {region_code} not in list of allowed region codes, ignoring this dataset."
+                        )
+
+            # Index the dataset
+            do_indexing(metadata, uri, dc, doc2ds, update, allow_unsafe)
+            ds_success += 1
+            # Success, so delete the message.
+            message.delete()
+        except SQStoDCException as err:
+            logging.error(err)
+            ds_failed += 1
+
+    return ds_success, ds_failed
 
 
 @click.command("sqs-to-dc")
@@ -308,7 +334,12 @@ class SQStoDCException(Exception):
     "--record-path",
     default=None,
     multiple=True,
-    help="filtering option for s3 path, i.e. 'L2/sentinel-2-nrt/S2MSIARD/*/*/ARD-METADATA.yaml'",
+    help="Filtering option for s3 path, i.e. 'L2/sentinel-2-nrt/S2MSIARD/*/*/ARD-METADATA.yaml'",
+)
+@click.option(
+    "--region-code-list-uri",
+    default=None,
+    help="A path to a list (one item per line, in txt or gzip format) of valide region_codes to include",
 )
 @click.argument("queue_name", type=str, nargs=1)
 @click.argument("product", type=str, nargs=1)
@@ -323,6 +354,7 @@ def cli(
     archive,
     allow_unsafe,
     record_path,
+    region_code_list_uri,
     queue_name,
     product,
 ):
@@ -353,6 +385,7 @@ def cli(
         allow_unsafe=allow_unsafe,
         record_path=record_path,
         odc_metadata_link=odc_metadata_link,
+        region_code_list_uri=region_code_list_uri,
     )
 
     result_msg = ""

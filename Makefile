@@ -37,7 +37,13 @@ index-s2-stac:
 
 index-s2-stac-sqs:
 	docker-compose exec dc-index \
-		python /code/odc_index/sqs_to_dc.py --stac --limit=10 "test_africa" s2_l2a
+		python /code/odc_index/sqs_to_dc.py --stac --limit=10 s2-v0-test s2_l2a
+
+index-s2-stac-sqs-region-code:
+	docker-compose exec dc-index \
+		python /code/odc_index/sqs_to_dc.py --stac --limit=10 \
+			--region-code-list-uri="https://github.com/digitalearthafrica/deafrica-extent/raw/master/deafrica-mgrs-tiles.csv.gz"\
+			s2-v0-test s2_l2a
 
 metadata-sandbox:
 	docker-compose exec dc-index \
