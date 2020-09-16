@@ -220,10 +220,13 @@ def queue_to_odc(
 
     region_codes = None
     if region_code_list_uri:
-        region_codes = set(pd.read_csv(region_code_list_uri).values.ravel())
+        try:
+            region_codes = set(pd.read_csv(region_code_list_uri).values.ravel())
+        except FileNotFoundError as e:
+            logging.error(f"Could not find region_code file with error: {e}")
         assert (
             len(region_codes) > 0
-        ), f"No items found in the list at URI: {region_code_list_uri}"
+        ), f"No items found in the region_code list at URI: {region_code_list_uri}"
         logging.info(f"Loaded a list of {len(region_codes)} region_codes ")
 
     doc2ds = Doc2Dataset(dc.index, products=products, **kwargs)
