@@ -13,7 +13,7 @@ on:
       - '.github/**'
       - 'Dockerfile'
       - 'docker-compose.yml'
-      - 'requirements-*.txt'
+      - 'requirements.txt'
 
 
 jobs:
@@ -26,7 +26,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v1
+      uses: actions/checkout@v2
       with:
         fetch-depth: 0
 
@@ -38,14 +38,10 @@ jobs:
     - name: Run Python Linter
       uses: lgeiger/black-action@master
       with:
-        args: ". --check"
-    
-    - name: Build Docker
-      run: |
-        docker build -t datacube-index .
+        args: "odc_index --check"
 
     - name: Run Dockerized Bootstrapping from Git
-      timeout-minutes: 2
+      timeout-minutes: 20
       shell: bash
       env:
         PRODUCT_CATALOG : https://raw.githubusercontent.com/GeoscienceAustralia/dea-config/a4f39b485b33608a016032d9987251881fec4b6f/workspaces/sandbox-products.csv
@@ -58,30 +54,31 @@ jobs:
         docker-compose down
 
     - name: Run Dockerized Tests for S3
-      timeout-minutes: 10
+      timeout-minutes: 20
       shell: bash
       env:
         AWS_ACCESS_KEY_ID : ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY : ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       run: |
         docker-compose up -d
-        docker-compose run dc-index datacube system init
-        docker-compose run dc-index datacube system check
-        docker-compose run dc-index datacube product add https://raw.githubusercontent.com/GeoscienceAustralia/digitalearthau/develop/digitalearthau/config/products/cemp_insar_alos_displacement.yaml
-        docker-compose run dc-index s3-to-dc s3://dea-public-data/cemp_insar/insar/displacement/alos//**/*.yaml cemp_insar_alos_displacement
+        docker-compose exec -T dc-index datacube system init
+        docker-compose exec -T dc-index datacube system check
+        echo "Checking InSAR indexing"
+        docker-compose exec -T dc-index datacube product add https://raw.githubusercontent.com/GeoscienceAustralia/digitalearthau/develop/digitalearthau/config/products/cemp_insar_alos_displacement.yaml
+        docker-compose exec -T dc-index s3-to-dc "s3://dea-public-data/cemp_insar/insar/displacement/alos/2010/**/*.yaml" cemp_insar_alos_displacement
         echo "Checking Indexed Datasets Count"
         docker-compose exec -T dc-db psql -U postgres -c "SELECT count(*) from agdc.dataset"
         echo "Checking STAC indexing"
-        docker-compose run dc-index datacube product add https://raw.githubusercontent.com/digitalearthafrica/config/master/products/esa_s2_l2a.yaml
-        docker-compose run dc-index s3-to-dc --stac "s3://sentinel-cogs/sentinel-s2-l2a-cogs/2020/S2A_32NNF_20200127_0_L2A/*.json" s2_l2a
+        docker-compose exec -T dc-index datacube product add https://raw.githubusercontent.com/digitalearthafrica/config/master/products/esa_s2_l2a.yaml
+        docker-compose exec -T dc-index s3-to-dc --stac "s3://sentinel-cogs/sentinel-s2-l2a-cogs/2020/S2A_32NNF_20200127_0_L2A/*.json" s2_l2a
         echo "Checking STAC API indexing"
-        docker-compose run dc-index stac-to-dc --bbox='-20,30,20,40' --limit=10 --collections='sentinel-s2-l2a-cogs' --datetime='2020-08-01/2020-08-31' s2_l2a
+        docker-compose exec -T dc-index stac-to-dc --bbox='-20,30,20,40' --limit=10 --collections='sentinel-s2-l2a-cogs' --datetime='2020-08-01/2020-08-31' s2_l2a
         echo "Checking Indexed Datasets Count (including STAC)"
         docker-compose exec -T dc-db psql -U postgres -c "SELECT count(*) from agdc.dataset"
         docker-compose down
 
     - name: Run Dockerized Tests for Thredds
-      timeout-minutes: 10
+      timeout-minutes: 20
       shell: bash
       env:
         AWS_ACCESS_KEY_ID : ${{ secrets.AWS_ACCESS_KEY_ID }}

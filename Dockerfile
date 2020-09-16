@@ -1,7 +1,6 @@
 FROM opendatacube/geobase:wheels as env_builder
 
-COPY requirements-docker.txt /
-RUN /usr/local/bin/env-build-tool new /requirements-docker.txt /env
+ARG py_env_path=/env
 
 ENV LC_ALL=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
@@ -19,16 +18,12 @@ RUN apt-get update \
     && sed 's/#.*//' /tmp/requirements-apt.txt | xargs apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
-# Use docker build cache more
-RUN mkdir -p /code/{odc_index,tests}
-ADD ./tests/requirements.txt /code/tests/requirements.txt
-ADD ./odc_index/requirements.txt /code/odc_index/requirements.txt
+# Install our requirements
+RUN mkdir -p /conf
+COPY requirements.txt /conf/
+RUN env-build-tool new /conf/requirements.txt ${py_env_path} /wheels
 
-# Install Python requirements
-RUN /env/bin/pip install \
-    -r /code/odc_index/requirements.txt -r /code/tests/requirements.txt
-
-# Set up a nice workdir, and only copy the things we care about in
+# Set up a nice workdir and fill it full of everything
 ADD . /code
 
 # Install the local package

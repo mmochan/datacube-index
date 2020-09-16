@@ -123,7 +123,7 @@ def cli(
     # TODO: Share Fetcher
     s3_obj_stream = s3_find_glob(uri, False)
 
-    # Extract URL's from output of iterator before passing to Fetcher
+    # Extract URLs from output of iterator before passing to Fetcher
     s3_url_stream = (o.url for o in s3_obj_stream)
 
     # TODO: Capture S3 URL's in batches and perform bulk_location_has

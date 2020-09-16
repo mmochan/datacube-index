@@ -12,7 +12,7 @@ services:
 
   # Start docker container for Datacube-Index
   dc-index:
-    image: datacube-index
+    build: .
     environment:
       - DB_HOSTNAME=dc-db
       - DB_USERNAME=postgres

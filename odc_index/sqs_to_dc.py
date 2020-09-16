@@ -218,12 +218,15 @@ def queue_to_odc(
     ds_success = 0
     ds_failed = 0
 
-    doc2ds = Doc2Dataset(dc.index, products=products, **kwargs)
-
     region_codes = None
     if region_code_list_uri:
         region_codes = set(pd.read_csv(region_code_list_uri).values.ravel())
+        assert (
+            len(region_codes) > 0
+        ), f"No items found in the list at URI: {region_code_list_uri}"
         logging.info(f"Loaded a list of {len(region_codes)} region_codes ")
+
+    doc2ds = Doc2Dataset(dc.index, products=products, **kwargs)
 
     # This is a generator of messages
     messages = get_messages(queue, limit)

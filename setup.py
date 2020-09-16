@@ -17,6 +17,11 @@ setuptools.setup(
     install_requires=[
         "Click",
     ],
+    extras_require={
+        'testing': [
+            "pytest"
+        ]
+    },
     entry_points="""
         [console_scripts]
         s3-to-dc=odc_index.s3_to_dc:cli

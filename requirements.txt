@@ -1,10 +1,13 @@
+--pre
 --extra-index-url https://packages.dea.ga.gov.au/
-aiohttp
-aiobotocore[awscli,boto3]
+datacube[performance,s3]==1.8.3
+aiobotocore[boto3,awscli]==1.1.1
+aiohttp==3.6.2
+pandas==1.0.5
+digitalearthau
 thredds-crawler
 wget
 requests
-datacube
 odc-aws
 odc-aio
 odc-thredds
@@ -12,3 +15,5 @@ odc-apps-cloud
 odc-index
 # Pinned for Alex to index STAC
 sat-search==0.3.0
+# test requirements, needed until testing is done separately
+pytest
