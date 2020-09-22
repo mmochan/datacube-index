@@ -4,6 +4,9 @@ Datacube Index
 .. image:: https://github.com/opendatacube/datacube-index/workflows/Lint%20and%20Test%20Code/badge.svg?branch=master
         :target: https://github.com/opendatacube/datacube-index/actions?query=workflow%3A%22Lint+and+Test+Code%22
 
+.. image:: https://github.com/opendatacube/datacube-index/workflows/Scan/badge.svg?branch=master
+        :target: https://github.com/opendatacube/datacube-index/actions?query=workflow%3A%22Scan%22
+
 This is a collection of python applications and a helper docker image used to
 index data into a datacube using `odc-tools <https://github.com/opendatacube/odc-tools>`_.
 
